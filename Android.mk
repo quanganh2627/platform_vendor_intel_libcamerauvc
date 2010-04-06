@@ -1,65 +1,41 @@
-# Copyright (c) 2009-2010 Wind River Systems, Inc.
-ifeq ($(USE_CAMERA_STUB),false)
-#
-# libcamera
-#
-
-LOCAL_PATH := $(call my-dir)
-
-LIBCAMERA_TOP := $(LOCAL_PATH)
-
+LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-$(info Intel MRST Camera Hardware Interface)
-
-LOCAL_MODULE := libcamera
-
-LOCAL_SHARED_LIBRARIES := \
-	libui \
-	libutils \
-	libcutils \
-	libdl \
-	libbinder \
-	libsensor \
-	libisphal \
-	libci \
-	libadvci
-
-LOCAL_SRC_FILES += \
-	CameraHardware.cpp \
-	IntelCamera.cpp
-
-LOCAL_CFLAGS += -DDEBUG_LEVEL=2
+LOCAL_SRC_FILES := \
+	ControlThread.cpp \
+	PreviewThread.cpp \
+	PictureThread.cpp \
+	VideoThread.cpp \
+	CameraDriver.cpp \
+	DebugFrameRate.cpp \
+	Callbacks.cpp \
+	CameraHAL.cpp \
+	ColorConverter.cpp \
+	EXIFFields.cpp \
+	JpegCompressor.cpp \
 
 LOCAL_C_INCLUDES += \
-	frameworks/base/include/ui \
-	hardware/intel/libci/include \
-	hardware/intel/libadvci/include
+	frameworks/base/include \
+	frameworks/base/include/binder \
+	frameworks/base/include/camera \
+	external/jpeg \
+	hardware/libhardware/include/hardware \
+	external/skia/include/core \
+	external/skia/include/images \
+	external/libs3cjpeg \
 
-LOCAL_STATIC_LIBRARIES +=
+LOCAL_SHARED_LIBRARIES := \
+	libcamera_client \
+	libutils \
+	libcutils \
+	libbinder \
+	libskia \
+	libandroid \
+	libui \
+	libs3cjpeg \
+
+LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
+LOCAL_MODULE := camera.$(TARGET_BOARD_PLATFORM)
+LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
-
-# ci-app test program
-include $(CLEAR_VARS)
-LOCAL_MODULE := ci-app
-
-LOCAL_SHARED_LIBRARIES := \
-	libui \
-	libutils \
-	libcutils \
-	libisphal \
-	libci \
-	libadvci
-
-LOCAL_SRC_FILES += ci-app.c
-
-LOCAL_CFLAGS += -DLOG_TAG=\"CI-APP\" -DBOOL_ENABLE
-
-LOCAL_C_INCLUDES += \
-	hardware/intel/libci/include \
-	hardware/intel/libadvci/include
-
-include $(BUILD_EXECUTABLE)
-
-endif
