@@ -116,7 +116,7 @@ public:
     status_t start(Mode mode);
     status_t stop();
 
-    inline int getNumBuffers() { return mNumBuffers; }
+    inline int getNumBuffers() { return mBufferPool.numBuffers; }
 
     status_t getPreviewFrame(CameraBuffer *buff);
     status_t putPreviewFrame(CameraBuffer *buff);
@@ -182,7 +182,6 @@ public:
 // private types
 private:
 
-    static const int MAX_DRIVER_BUFFERS  = MAX_BURST_BUFFERS;
     static const int MAX_CAMERAS         = 8;
     static const int NUM_DEFAULT_BUFFERS = 4;
 
@@ -215,21 +214,14 @@ private:
     };
 
     struct DriverBuffer {
-        void *data;
-        size_t length;
-        int width;
-        int height;
-        int format;
-        int flags; //You can use to to detern the buf status
-        struct v4l2_buffer vbuffer;
+        CameraBuffer camBuff;
+        struct v4l2_buffer vBuff;
     };
 
     struct DriverBufferPool {
-        int active_buffers;
-        int width;
-        int height;
-        int format;
-        struct DriverBuffer bufs [MAX_DRIVER_BUFFERS];
+        int numBuffers;
+        int numBuffersQueued;
+        DriverBuffer *bufs;
     };
 
 // private methods
@@ -242,44 +234,35 @@ private:
     status_t startCapture();
     status_t stopCapture();
 
-    status_t allocatePreviewBuffers();
-    status_t allocateRecordingBuffers();
-    status_t allocateSnapshotBuffers();
-    status_t freePreviewBuffers();
-    status_t freeRecordingBuffers();
-    status_t freeSnapshotBuffers();
     static int enumerateCameras();
     static void cleanupCameras();
     const char* getMaxSnapShotResolution();
 
+    // Open, Close, Configure methods
     int openDevice();
     void closeDevice();
-    int configureDevice(Mode deviceMode, int w, int h, int format, bool raw);
-    int startDevice(int buffer_count);
+    int configureDevice(Mode deviceMode, int w, int h, int format, int numBuffers);
+    int deconfigureDevice();
+    int startDevice();
     void stopDevice();
+
+    // Buffer methods
+    status_t allocateBuffer(int fd, int index);
+    status_t allocateBuffers(int numBuffers);
+    status_t freeBuffer(int index);
+    status_t freeBuffers();
+    status_t queueBuffer(CameraBuffer *buff, bool init = false);
+    status_t dequeueBuffer(CameraBuffer *buff, nsecs_t *timestamp = 0);
 
     status_t v4l2_capture_open(const char *devName);
     status_t v4l2_capture_close(int fd);
     status_t v4l2_capture_querycap(int fd, struct v4l2_capability *cap);
-    status_t v4l2_capture_s_input(int fd, int index);
     int detectDeviceResolutions();
     int set_capture_mode(Mode deviceMode);
     int v4l2_capture_try_format(int fd, int *w, int *h, int *format);
     int v4l2_capture_g_framerate(int fd, float * framerate, int width,
                                           int height, int pix_fmt);
-    int v4l2_capture_s_format(int fd, int w, int h, int format, bool raw);
-    int v4l2_capture_streamoff(int fd);
-    void destroyBufferPool();
-    int v4l2_capture_free_buffer(struct DriverBuffer *buf_info);
-    int v4l2_capture_release_buffers();
-    int v4l2_capture_request_buffers(uint num_buffers);
-    int createBufferPool(int buffer_count);
-    int v4l2_capture_new_buffer(int index, struct DriverBuffer *buf);
-    int activateBufferPool();
-    int v4l2_capture_streamon(int fd);
-    int v4l2_capture_qbuf(int fd, int index, struct DriverBuffer *buf);
-    int grabFrame(struct v4l2_buffer *buf);
-    int v4l2_capture_dqbuf(int fd, struct v4l2_buffer *buf);
+    int v4l2_capture_s_format(int fd, int w, int h, int format);
     int set_attribute (int fd, int attribute_num,
                                const int value, const char *name);
     int set_zoom (int fd, int zoom);
@@ -295,18 +278,9 @@ private:
     Mode mMode;
     Callbacks *mCallbacks;
 
-    int mNumBuffers;
-    CameraBuffer *mPreviewBuffers;
-    CameraBuffer *mRecordingBuffers;
-
-    CameraBuffer mSnapshotBuffers[MAX_BURST_BUFFERS];
-    CameraBuffer mPostviewBuffers[MAX_BURST_BUFFERS];
-    int mNumPreviewBuffersQueued;
-    int mNumRecordingBuffersQueued;
-    int mNumCapturegBuffersQueued;
     Config mConfig;
 
-    struct DriverBufferPool mBufferPool[MAX_CAMERAS]; // FIXME: Number of buffers should be dynamically queried.
+    struct DriverBufferPool mBufferPool;
 
     int mSessionId; // uniquely identify each session
 

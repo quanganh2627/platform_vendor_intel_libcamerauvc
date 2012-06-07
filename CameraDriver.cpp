@@ -79,23 +79,16 @@ int CameraDriver::numCameras = 0;
 CameraDriver::CameraDriver(int cameraId) :
     mMode(MODE_NONE)
     ,mCallbacks(Callbacks::getInstance())
-    ,mNumBuffers(NUM_DEFAULT_BUFFERS)
-    ,mPreviewBuffers(NULL)
-    ,mRecordingBuffers(NULL)
-    ,mNumPreviewBuffersQueued(0)
-    ,mNumRecordingBuffersQueued(0)
-    ,mNumCapturegBuffersQueued(0)
     ,mSessionId(0)
     ,mCameraId(cameraId)
 {
     LOG1("@%s", __FUNCTION__);
 
-    memset(&mPostviewBuffers, 0, sizeof(mPostviewBuffers));
-    memset(&mSnapshotBuffers, 0, sizeof(mSnapshotBuffers));
-
     mConfig.fps = 30;
     mConfig.num_snapshot = 1;
     mConfig.zoom = 0;
+
+    memset(&mBufferPool, 0, sizeof(mBufferPool));
 
     int ret = openDevice();
     if (ret < 0) {
@@ -337,42 +330,37 @@ status_t CameraDriver::startPreview()
 
     ret = openDevice();
     if (ret < 0) {
-        LOGE("Open preview device failed!");
+        LOGE("Open device failed!");
         status = UNKNOWN_ERROR;
         return status;
     }
-
-    if ((status = allocatePreviewBuffers()) != NO_ERROR)
-        goto exitClose;
 
     ret = configureDevice(
             MODE_PREVIEW,
             mConfig.preview.padding,
             mConfig.preview.height,
             mConfig.preview.format,
-            false);
+            NUM_DEFAULT_BUFFERS);
     if (ret < 0) {
-        LOGE("Configure preview device failed!");
+        LOGE("Configure device failed!");
         status = UNKNOWN_ERROR;
-        goto exitFreeClose;
+        goto exitClose;
     }
 
     // need to resend the current zoom value
     set_zoom(mCameraSensor[mCameraId]->fd, mConfig.zoom);
 
-    ret = startDevice(mNumBuffers);
+    ret = startDevice();
     if (ret < 0) {
-        LOGE("Start preview device failed!");
+        LOGE("Start device failed!");
         status = UNKNOWN_ERROR;
-        goto exitFreeClose;
+        goto exitDeconfig;
     }
-
-    mNumPreviewBuffersQueued = mNumBuffers;
 
     return status;
 
-exitFreeClose:
-    freePreviewBuffers();
+exitDeconfig:
+    deconfigureDevice();
 exitClose:
     closeDevice();
     return status;
@@ -382,54 +370,49 @@ status_t CameraDriver::stopPreview()
 {
     LOG1("@%s", __FUNCTION__);
 
-    freePreviewBuffers();
     stopDevice();
+    deconfigureDevice();
     closeDevice();
 
     return NO_ERROR;
 }
 
-status_t CameraDriver::startRecording() {
+status_t CameraDriver::startRecording()
+{
     LOG1("@%s", __FUNCTION__);
     int ret = 0;
     status_t status = NO_ERROR;
 
     ret = openDevice();
     if (ret < 0) {
-        LOGE("Open recording device failed!");
+        LOGE("Open device failed!");
         status = UNKNOWN_ERROR;
         return status;
     }
 
-    if ((status = allocateRecordingBuffers()) != NO_ERROR)
-        goto exitClose;
-
     ret = configureDevice(
             MODE_VIDEO,
-            mConfig.recording.padding,
-            mConfig.recording.height,
-            mConfig.recording.format,
-            false);
+            mConfig.preview.padding,
+            mConfig.preview.height,
+            mConfig.preview.format,
+            NUM_DEFAULT_BUFFERS);
     if (ret < 0) {
-        LOGE("Configure recording device failed!");
+        LOGE("Configure device failed!");
         status = UNKNOWN_ERROR;
-        goto exitFreeClose;
+        goto exitClose;
     }
 
-    ret = startDevice(mNumBuffers);
+    ret = startDevice();
     if (ret < 0) {
-        LOGE("Start recording device failed");
+        LOGE("Start device failed!");
         status = UNKNOWN_ERROR;
-        goto exitFreeClose;
+        goto exitDeconfig;
     }
-
-    mNumPreviewBuffersQueued = mNumBuffers;
-    mNumRecordingBuffersQueued = mNumBuffers;
 
     return status;
 
-exitFreeClose:
-    freeRecordingBuffers();
+exitDeconfig:
+    deconfigureDevice();
 exitClose:
     closeDevice();
     return status;
@@ -439,8 +422,8 @@ status_t CameraDriver::stopRecording()
 {
     LOG1("@%s", __FUNCTION__);
 
-    freeRecordingBuffers();
     stopDevice();
+    deconfigureDevice();
     closeDevice();
 
     return NO_ERROR;
@@ -449,47 +432,42 @@ status_t CameraDriver::stopRecording()
 status_t CameraDriver::startCapture()
 {
     LOG1("@%s", __FUNCTION__);
-    int ret;
+    int ret = 0;
     status_t status = NO_ERROR;
 
     ret = openDevice();
     if (ret < 0) {
-        LOGE("Open capture device failed!");
+        LOGE("Open device failed!");
         status = UNKNOWN_ERROR;
         return status;
     }
 
-    if ((status = allocateSnapshotBuffers()) != NO_ERROR)
-        goto exitClose;
-
     ret = configureDevice(
             MODE_CAPTURE,
-            mConfig.snapshot.width,
-            mConfig.snapshot.height,
-            mConfig.snapshot.format,
-            false);
+            mConfig.preview.padding,
+            mConfig.preview.height,
+            mConfig.preview.format,
+            NUM_DEFAULT_BUFFERS);
     if (ret < 0) {
-        LOGE("configure capture device failed!");
+        LOGE("Configure device failed!");
         status = UNKNOWN_ERROR;
-        goto exitFreeClose;
+        goto exitClose;
     }
 
     // need to resend the current zoom value
     set_zoom(mCameraSensor[mCameraId]->fd, mConfig.zoom);
 
-    ret = startDevice(mConfig.num_snapshot);
+    ret = startDevice();
     if (ret < 0) {
-        LOGE("start capture device failed!");
+        LOGE("Start device failed!");
         status = UNKNOWN_ERROR;
-        goto exitFreeClose;
+        goto exitDeconfig;
     }
-
-    mNumCapturegBuffersQueued = mConfig.num_snapshot;
 
     return status;
 
-exitFreeClose:
-    freeSnapshotBuffers();
+exitDeconfig:
+    deconfigureDevice();
 exitClose:
     closeDevice();
     return status;
@@ -499,19 +477,19 @@ status_t CameraDriver::stopCapture()
 {
     LOG1("@%s", __FUNCTION__);
 
-    freeSnapshotBuffers();
     stopDevice();
+    deconfigureDevice();
     closeDevice();
 
     return NO_ERROR;
 }
 
-int CameraDriver::configureDevice(Mode deviceMode, int w, int h, int format, bool raw)
+int CameraDriver::configureDevice(Mode deviceMode, int w, int h, int format, int numBuffers)
 {
     LOG1("@%s", __FUNCTION__);
     int ret = 0;
-    LOG1("width:%d, height:%d, deviceMode:%d format:%d raw:%d",
-            w, h, deviceMode, format, raw);
+    LOG1("width:%d, height:%d, deviceMode:%d format:%d",
+            w, h, deviceMode, format);
 
     if ((w <= 0) || (h <= 0)) {
         LOGE("Wrong Width %d or Height %d", w, h);
@@ -526,13 +504,9 @@ int CameraDriver::configureDevice(Mode deviceMode, int w, int h, int format, boo
         return ret;
 
     //Set the format
-    ret = v4l2_capture_s_format(fd, w, h, format, raw);
+    ret = v4l2_capture_s_format(fd, w, h, format);
     if (ret < 0)
         return ret;
-
-    mBufferPool[mCameraId].width = w;
-    mBufferPool[mCameraId].height = h;
-    mBufferPool[mCameraId].format = format;
 
     ret = v4l2_capture_g_framerate(fd, &mConfig.fps, w, h, format);
     if (ret < 0) {
@@ -542,113 +516,60 @@ int CameraDriver::configureDevice(Mode deviceMode, int w, int h, int format, boo
         ret = 0;
     }
 
-    //We need apply all the parameter settings when do the camera reset
-    return ret;
-}
-
-int CameraDriver::startDevice(int buffer_count)
-{
-    LOG1("@%s", __FUNCTION__);
-
-    int i, ret;
-    int fd = mCameraSensor[mCameraId]->fd;
-    LOG1(" startDevice fd = %d", fd);
-
-    //parameter intialized before the streamon
-    //request, query and mmap the buffer and save to the pool
-    ret = createBufferPool(buffer_count);
-    if (ret < 0)
-        return ret;
-
-    //Qbuf
-    ret = activateBufferPool();
-    if (ret < 0)
-        goto activate_error;
-
-    //stream on
-    ret = v4l2_capture_streamon(fd);
-    if (ret < 0)
-       goto streamon_failed;
-
-    //we are started now
-    return 0;
-
-streamon_failed:
-activate_error:
-    destroyBufferPool();
-    return ret;
-}
-
-int CameraDriver::activateBufferPool()
-{
-    LOG1("@%s", __FUNCTION__);
-
-    int fd = mCameraSensor[mCameraId]->fd;
-    int ret;
-    struct DriverBufferPool *pool = &mBufferPool[mCameraId];
-
-    for (int i = 0; i < pool->active_buffers; i++) {
-        ret = v4l2_capture_qbuf(fd, i, &pool->bufs[i]);
-        if (ret < 0)
-            return ret;
+    status_t status = allocateBuffers(numBuffers);
+    if (status != NO_ERROR) {
+        LOGE("error allocating buffers");
+        ret = -1;
     }
-    return 0;
+
+    return ret;
 }
 
-int CameraDriver::createBufferPool(int buffer_count)
+int CameraDriver::deconfigureDevice()
 {
-    LOG1("@%s", __FUNCTION__);
-    int i, ret;
-
-    int fd = mCameraSensor[mCameraId]->fd;
-    struct DriverBufferPool *pool = &mBufferPool[mCameraId];
-    int num_buffers = v4l2_capture_request_buffers(buffer_count);
-    LOG1("num_buffers = %d", num_buffers);
-
-    if (num_buffers <= 0)
+    status_t status = freeBuffers();
+    if (status != NO_ERROR) {
+        LOGE("Error freeing buffers");
         return -1;
-
-    pool->active_buffers = num_buffers;
-
-    for (i = 0; i < num_buffers; i++) {
-        pool->bufs[i].width = pool->width;
-        pool->bufs[i].height = pool->height;
-        pool->bufs[i].format = pool->format;
-        ret = v4l2_capture_new_buffer(i, &pool->bufs[i]);
-        if (ret < 0)
-            goto error;
     }
     return 0;
+}
 
-error:
-    for (int j = 0; j < i; j++)
-        v4l2_capture_free_buffer(&pool->bufs[j]);
-    pool->active_buffers = 0;
-    return ret;
+int CameraDriver::startDevice()
+{
+    LOG1("@%s fd=%d", __FUNCTION__, mCameraSensor[mCameraId]->fd);
+
+    int ret;
+    int fd = mCameraSensor[mCameraId]->fd;
+    enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+    for (int i = 0; i < mBufferPool.numBuffers; i++) {
+        status_t status = queueBuffer(&mBufferPool.bufs[i].camBuff, true);
+        if (status != NO_ERROR)
+            return -1;
+    }
+
+    ret = ioctl(fd, VIDIOC_STREAMON, &type);
+    if (ret < 0) {
+        LOGE("VIDIOC_STREAMON returned: %d (%s)", ret, strerror(errno));
+        return ret;
+    }
+
+    return 0;
 }
 
 void CameraDriver::stopDevice()
 {
     LOG1("@%s", __FUNCTION__);
 
+    int ret;
     int fd = mCameraSensor[mCameraId]->fd;
+    enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
-    //stream off
-    v4l2_capture_streamoff(fd);
-    destroyBufferPool();
-}
-
-void CameraDriver::destroyBufferPool()
-{
-    LOG1("@%s", __FUNCTION__);
-
-    int fd = mCameraSensor[mCameraId]->fd;
-    struct DriverBufferPool *pool = &mBufferPool[mCameraId];
-
-    for (int i = 0; i < pool->active_buffers; i++)
-        v4l2_capture_free_buffer(&pool->bufs[i]);
-    pool->active_buffers = 0;
-    v4l2_capture_release_buffers();
+    ret = ioctl(fd, VIDIOC_STREAMOFF, &type);
+    if (ret < 0) {
+        LOGE("VIDIOC_STREAMOFF returned: %d (%s)", ret, strerror(errno));
+    }
 }
 
 int CameraDriver::openDevice()
@@ -696,14 +617,182 @@ void CameraDriver::closeDevice()
         return;
     }
 
-    if (mCameraSensor[mCameraId]->fd < 0)
+    if (mCameraSensor[mCameraId]->fd < 0) {
+        LOGE("oh no. this should not be happening");
         return;
+    }
 
     v4l2_capture_close(mCameraSensor[mCameraId]->fd);
 
     mCameraSensor[mCameraId]->fd = -1;
 }
 
+status_t CameraDriver::allocateBuffer(int fd, int index)
+{
+    struct v4l2_buffer *vbuf = &mBufferPool.bufs[index].vBuff;
+    CameraBuffer *camBuf = &mBufferPool.bufs[index].camBuff;
+    int ret;
+
+    // query for buffer info
+    vbuf->flags = 0x0;
+    vbuf->index = index;
+    vbuf->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    vbuf->memory = V4L2_MEMORY_USERPTR;
+    ret = ioctl(fd, VIDIOC_QUERYBUF, vbuf);
+    if (ret < 0) {
+        LOGE("VIDIOC_QUERYBUF failed: %s", strerror(errno));
+        return UNKNOWN_ERROR;
+    }
+
+    // allocate memory
+    camBuf->id = index;
+    mCallbacks->allocateMemory(camBuf, vbuf->length);
+    vbuf->m.userptr = (unsigned int) camBuf->buff->data;
+
+    LOG1("alloc mem addr=%p, index=%d size=%d", camBuf->buff->data, index, vbuf->length);
+
+    return NO_ERROR;
+}
+
+status_t CameraDriver::allocateBuffers(int numBuffers)
+{
+    if (mBufferPool.bufs) {
+        LOGE("fail to alloc. non-null buffs");
+        return UNKNOWN_ERROR;
+    }
+
+    int ret;
+    int fd = mCameraSensor[mCameraId]->fd;
+    struct v4l2_requestbuffers reqBuf;
+    reqBuf.count = numBuffers;
+    reqBuf.memory = V4L2_MEMORY_USERPTR;
+    reqBuf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+    LOG1("VIDIOC_REQBUFS, count=%d", reqBuf.count);
+    ret = ioctl(fd, VIDIOC_REQBUFS, &reqBuf);
+
+    if (ret < 0) {
+        LOGE("VIDIOC_REQBUFS(%d) returned: %d (%s)",
+            numBuffers, ret, strerror(errno));
+        return UNKNOWN_ERROR;
+    }
+
+    mBufferPool.bufs = new DriverBuffer[numBuffers];
+
+    status_t status = NO_ERROR;
+    for (int i = 0; i < numBuffers; i++) {
+        status = allocateBuffer(fd, i);
+        if (status != NO_ERROR)
+            goto fail;
+
+        mBufferPool.numBuffers++;
+    }
+
+    return NO_ERROR;
+
+fail:
+
+    for (int i = 0; i < mBufferPool.numBuffers; i++) {
+        freeBuffer(i);
+    }
+
+    delete [] mBufferPool.bufs;
+    memset(&mBufferPool, 0, sizeof(mBufferPool));
+
+    return status;
+}
+
+status_t CameraDriver::freeBuffer(int index)
+{
+    CameraBuffer *camBuf = &mBufferPool.bufs[index].camBuff;
+    camBuf->buff->release(camBuf->buff);
+    return NO_ERROR;
+}
+
+status_t CameraDriver::freeBuffers()
+{
+    if (!mBufferPool.bufs) {
+        LOGE("fail to free. null buffers");
+        return NO_ERROR; // This is okay, just print an error
+    }
+
+    int ret;
+    int fd = mCameraSensor[mCameraId]->fd;
+    struct v4l2_requestbuffers reqBuf;
+    reqBuf.count = 0;
+    reqBuf.memory = V4L2_MEMORY_USERPTR;
+    reqBuf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+    for (int i = 0; i < mBufferPool.numBuffers; i++) {
+        freeBuffer(i);
+    }
+
+    LOG1("VIDIOC_REQBUFS, count=%d", reqBuf.count);
+    ret = ioctl(fd, VIDIOC_REQBUFS, &reqBuf);
+
+    if (ret < 0) {
+        // Just print an error and continue with dealloc logic
+        LOGE("VIDIOC_REQBUFS returned: %d (%s)",
+                ret, strerror(errno));
+    }
+
+    delete [] mBufferPool.bufs;
+    memset(&mBufferPool, 0, sizeof(mBufferPool));
+
+    return NO_ERROR;
+}
+
+status_t CameraDriver::queueBuffer(CameraBuffer *buff, bool init)
+{
+    // see if we are in session (not initializing the driver with buffers)
+    if (init == false) {
+        if (buff->driverPrivate != mSessionId)
+            return DEAD_OBJECT;
+    }
+
+    int ret;
+    int fd = mCameraSensor[mCameraId]->fd;
+    struct v4l2_buffer *vbuff = &mBufferPool.bufs[buff->id].vBuff;
+
+    ret = ioctl(fd, VIDIOC_QBUF, vbuff);
+    if (ret < 0) {
+        LOGE("VIDIOC_QBUF index %d failed: %s",
+             buff->id, strerror(errno));
+        return UNKNOWN_ERROR;
+    }
+
+    mBufferPool.numBuffersQueued++;
+
+    return NO_ERROR;
+}
+
+status_t CameraDriver::dequeueBuffer(CameraBuffer *buff, nsecs_t *timestamp)
+{
+    int ret;
+    int fd = mCameraSensor[mCameraId]->fd;
+    struct v4l2_buffer vbuff;
+
+    vbuff.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    vbuff.memory = V4L2_MEMORY_USERPTR;
+
+    ret = ioctl(fd, VIDIOC_DQBUF, &vbuff);
+    if (ret < 0) {
+        LOGE("error dequeuing buffers");
+        return UNKNOWN_ERROR;
+    }
+
+    CameraBuffer *camBuff = &mBufferPool.bufs[vbuff.index].camBuff;
+    camBuff->id = vbuff.index;
+    camBuff->driverPrivate = mSessionId;
+    *buff = *camBuff;
+
+    if (timestamp)
+        *timestamp = systemTime();
+
+    mBufferPool.numBuffersQueued--;
+
+    return NO_ERROR;
+}
 
 int CameraDriver::detectDeviceResolutions()
 {
@@ -1002,164 +1091,6 @@ int CameraDriver::xioctl(int fd, int request, void *arg)
     return ret;
 }
 
-int CameraDriver::v4l2_capture_streamon(int fd)
-{
-    LOG1("@%s", __FUNCTION__);
-    int ret;
-    enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-
-    ret = ioctl(fd, VIDIOC_STREAMON, &type);
-    if (ret < 0) {
-        LOGE("VIDIOC_STREAMON returned: %d (%s)", ret, strerror(errno));
-        return ret;
-    }
-    return ret;
-}
-
-int CameraDriver::v4l2_capture_streamoff(int fd)
-{
-    LOG1("@%s", __FUNCTION__);
-    int ret;
-    enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-
-    if (fd < 0){ //Device is closed
-        LOGE("Device is closed!");
-        return 0;
-    }
-    ret = ioctl(fd, VIDIOC_STREAMOFF, &type);
-    if (ret < 0) {
-        LOGE("VIDIOC_STREAMOFF returned: %d (%s)", ret, strerror(errno));
-        return ret;
-    }
-
-    return ret;
-}
-
-/* Unmap the buffer or free the userptr */
-int CameraDriver::v4l2_capture_free_buffer(struct DriverBuffer *buf_info)
-{
-    LOG1("@%s", __FUNCTION__);
-    int ret = 0;
-    void *addr = buf_info->data;
-    size_t length = buf_info->length;
-
-    // FIXME: Temporary solution for mmap streams. We should support user ptr and read/write IO
-    if ((ret = munmap(addr, length)) < 0) {
-            LOGE("munmap returned: %d (%s)", ret, strerror(errno));
-            return ret;
-    }
-
-    return ret;
-}
-
-int CameraDriver::v4l2_capture_release_buffers()
-{
-    LOG1("@%s", __FUNCTION__);
-    return v4l2_capture_request_buffers(0);
-}
-
-int CameraDriver::v4l2_capture_request_buffers(uint num_buffers)
-{
-    LOG1("@%s", __FUNCTION__);
-    struct v4l2_requestbuffers req_buf;
-    int ret;
-    CLEAR(req_buf);
-
-    int fd = mCameraSensor[mCameraId]->fd;
-
-    if (fd < 0)
-        return 0;
-
-    req_buf.memory = V4L2_MEMORY_USERPTR;
-    req_buf.count = num_buffers;
-    req_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-
-    // TODO: Temporary solution for 1st camera and mmap streams.
-    if (mCameraId == 0) {
-        req_buf.memory = V4L2_MEMORY_MMAP;
-        req_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    }
-
-    LOG1("VIDIOC_REQBUFS, count=%d", req_buf.count);
-    ret = ioctl(fd, VIDIOC_REQBUFS, &req_buf);
-
-    if (ret < 0) {
-        LOGE("VIDIOC_REQBUFS(%d) returned: %d (%s)",
-            num_buffers, ret, strerror(errno));
-        return ret;
-    }
-
-    if (req_buf.count < num_buffers)
-        LOGW("Got less buffers than requested!");
-
-    return req_buf.count;
-}
-
-int CameraDriver::v4l2_capture_new_buffer(int index, struct DriverBuffer *buf)
-{
-    LOG1("@%s", __FUNCTION__);
-    void *data;
-    int ret;
-    int fd = mCameraSensor[mCameraId]->fd;
-    struct v4l2_buffer *vbuf = &buf->vbuffer;
-    vbuf->flags = 0x0;
-
-    // TODO: Temporary solution for 1st camera and mmap streams.
-    if (mCameraId == 0) {
-        vbuf->index = index;
-        vbuf->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        vbuf->memory = V4L2_MEMORY_MMAP;
-        ret = ioctl(fd, VIDIOC_QUERYBUF, vbuf);
-        if (ret < 0) {
-            LOGE("VIDIOC_QUERYBUF failed: %s", strerror(errno));
-            return -1;
-        }
-        data = mmap(NULL, vbuf->length, PROT_READ | PROT_WRITE, MAP_SHARED, fd,
-                vbuf->m.offset);
-        if (MAP_FAILED == data) {
-            LOGE("mmap failed: %s", strerror(errno));
-            return -1;
-        }
-        buf->data = data;
-        buf->length = vbuf->length;
-
-        //FIXME: we change to mmap buffer that will be provided by kernel, instead
-        //the old design  to allocate a user space buffer for kernel. So we setup
-        //pointers in a reversed way...
-
-        // FIXME: WE assume num of preview buffers are same as pool buffers...
-        mPreviewBuffers[index].buff->data = data;
-        mPreviewBuffers[index].buff->size = vbuf->length;
-
-        LOG1("!! Setup mmap for 1st dev at %p with len %d and mPreviewBuffer[%d]", buf->data, buf->length, index);
-        return 0;
-    }
-
-    vbuf->memory = V4L2_MEMORY_USERPTR;
-
-    vbuf->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    vbuf->index = index;
-    ret = ioctl(fd , VIDIOC_QUERYBUF, vbuf);
-
-    if (ret < 0) {
-        LOGE("VIDIOC_QUERYBUF failed: %s", strerror(errno));
-        return ret;
-    }
-
-    vbuf->m.userptr = (unsigned int)(buf->data);
-
-    buf->length = vbuf->length;
-    LOG1("index %u", vbuf->index);
-    LOG1("type %d", vbuf->type);
-    LOG1("bytesused %u", vbuf->bytesused);
-    LOG1("flags %08x", vbuf->flags);
-    LOG1("memory %u", vbuf->memory);
-    LOG1("userptr:  %lu", vbuf->m.userptr);
-    LOG1("length %u", vbuf->length);
-    LOG1("input %u", vbuf->input);
-    return ret;
-}
-
 int CameraDriver::v4l2_capture_g_framerate(int fd, float *framerate, int width,
                                          int height, int pix_fmt)
 {
@@ -1190,7 +1121,7 @@ int CameraDriver::v4l2_capture_g_framerate(int fd, float *framerate, int width,
     return 0;
 }
 
-int CameraDriver::v4l2_capture_s_format(int fd, int w, int h, int fourcc, bool raw)
+int CameraDriver::v4l2_capture_s_format(int fd, int w, int h, int fourcc)
 {
     LOG1("@%s", __FUNCTION__);
     int ret;
@@ -1203,12 +1134,6 @@ int CameraDriver::v4l2_capture_s_format(int fd, int w, int h, int fourcc, bool r
     if (ret < 0) {
         LOGE("VIDIOC_G_FMT failed: %s", strerror(errno));
         return -1;
-    }
-    if (raw) {
-        LOG1("Choose raw dump path");
-        v4l2_fmt.type = V4L2_BUF_TYPE_PRIVATE;
-    } else {
-        v4l2_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     }
 
     v4l2_fmt.fmt.pix.width = w;
@@ -1227,23 +1152,6 @@ int CameraDriver::v4l2_capture_s_format(int fd, int w, int h, int fourcc, bool r
     }
     return 0;
 
-}
-
-int CameraDriver::v4l2_capture_qbuf(int fd, int index, struct DriverBuffer *buf)
-{
-    LOG2("@%s", __FUNCTION__);
-    struct v4l2_buffer *v4l2_buf = &buf->vbuffer;
-    int ret;
-
-    if (fd < 0) //Device is closed
-        return 0;
-    ret = ioctl(fd, VIDIOC_QBUF, v4l2_buf);
-    if (ret < 0) {
-        LOGE("VIDIOC_QBUF index %d failed: %s",
-             index, strerror(errno));
-        return ret;
-    }
-    return ret;
 }
 
 status_t CameraDriver::v4l2_capture_open(const char *devName)
@@ -1324,25 +1232,6 @@ status_t CameraDriver::v4l2_capture_querycap(int fd, struct v4l2_capability *cap
     return ret;
 }
 
-status_t CameraDriver::v4l2_capture_s_input(int fd, int index)
-{
-    LOG1("@%s", __FUNCTION__);
-    struct v4l2_input input;
-    int ret;
-
-    LOG1("VIDIOC_S_INPUT");
-    input.index = index;
-
-    ret = ioctl(fd, VIDIOC_S_INPUT, &input);
-
-    if (ret < 0) {
-        LOGE("VIDIOC_S_INPUT index %d returned: %d (%s)",
-            input.index, ret, strerror(errno));
-        return ret;
-    }
-    return ret;
-}
-
 int CameraDriver::set_capture_mode(Mode deviceMode)
 {
     LOG1("@%s", __FUNCTION__);
@@ -1390,24 +1279,11 @@ int CameraDriver::v4l2_capture_try_format(int fd, int *w, int *h,
 status_t CameraDriver::getPreviewFrame(CameraBuffer *buff)
 {
     LOG2("@%s", __FUNCTION__);
-    struct v4l2_buffer buf;
 
     if (mMode == MODE_NONE)
         return INVALID_OPERATION;
 
-    int index = grabFrame(&buf);
-    if(index < 0){
-        LOGE("Error in grabbing frame!");
-        return BAD_INDEX;
-    }
-    LOG2("Grabbed frame of size: %d", buf.bytesused);
-    mPreviewBuffers[index].id = index;
-    mPreviewBuffers[index].driverPrivate = mSessionId;
-    *buff = mPreviewBuffers[index];
-
-    mNumPreviewBuffersQueued--;
-
-    return NO_ERROR;
+    return dequeueBuffer(buff);
 }
 
 status_t CameraDriver::putPreviewFrame(CameraBuffer *buff)
@@ -1416,110 +1292,45 @@ status_t CameraDriver::putPreviewFrame(CameraBuffer *buff)
     if (mMode == MODE_NONE)
         return INVALID_OPERATION;
 
-    if (buff->driverPrivate != mSessionId)
-        return DEAD_OBJECT;
-
-    if (v4l2_capture_qbuf(mCameraSensor[mCameraId]->fd,
-                      buff->id,
-                      &mBufferPool[mCameraId].bufs[buff->id]) < 0) {
-        return UNKNOWN_ERROR;
-    }
-
-    mNumPreviewBuffersQueued++;
-
-    return NO_ERROR;
+    return queueBuffer(buff);;
 }
 
 status_t CameraDriver::getRecordingFrame(CameraBuffer *buff, nsecs_t *timestamp)
 {
     LOG2("@%s", __FUNCTION__);
-    struct v4l2_buffer buf;
 
-    if (mMode != MODE_VIDEO)
+    if (mMode == MODE_NONE)
         return INVALID_OPERATION;
 
-    int index = grabFrame(&buf);
-    LOG2("index = %d", index);
-    if(index < 0) {
-        LOGE("Error in grabbing frame!");
-        return BAD_INDEX;
-    }
-    LOG2("Grabbed frame of size: %d", buf.bytesused);
-    mRecordingBuffers[index].id = index;
-    mRecordingBuffers[index].driverPrivate = mSessionId;
-    *buff = mRecordingBuffers[index];
-    *timestamp = systemTime();
-
-    mNumRecordingBuffersQueued--;
-
-    return NO_ERROR;
+    return dequeueBuffer(buff, timestamp);
 }
 
 status_t CameraDriver::putRecordingFrame(CameraBuffer *buff)
 {
     LOG2("@%s", __FUNCTION__);
-    if (mMode != MODE_VIDEO)
+    if (mMode == MODE_NONE)
         return INVALID_OPERATION;
 
-    if (buff->driverPrivate != mSessionId)
-        return DEAD_OBJECT;
-
-    if (v4l2_capture_qbuf(mCameraSensor[mCameraId]->fd,
-            buff->id,
-            &mBufferPool[mCameraId].bufs[buff->id]) < 0) {
-        return UNKNOWN_ERROR;
-    }
-
-    mNumRecordingBuffersQueued++;
-
-    return NO_ERROR;
+    return queueBuffer(buff);;
 }
 
 status_t CameraDriver::getSnapshot(CameraBuffer *buff)
 {
-    LOG1("@%s", __FUNCTION__);
-    struct v4l2_buffer buf;
-    int index;
+    LOG2("@%s", __FUNCTION__);
 
-    if (mMode != MODE_CAPTURE)
+    if (mMode == MODE_NONE)
         return INVALID_OPERATION;
 
-    index = grabFrame(&buf);
-    if (index < 0) {
-        LOGE("Error in grabbing frame from 1'st device!");
-        return BAD_INDEX;
-    }
-    LOG1("Grabbed frame of size: %d", buf.bytesused);
-
-    mSnapshotBuffers[index].id = index;
-    mSnapshotBuffers[index].driverPrivate = mSessionId;
-    *buff = mSnapshotBuffers[index];
-
-    mNumCapturegBuffersQueued--;
-
-    return NO_ERROR;
+    return dequeueBuffer(buff);
 }
 
 status_t CameraDriver::putSnapshot(CameraBuffer *buff)
 {
-    LOG1("@%s", __FUNCTION__);
-    int ret;
-
-    if (mMode != MODE_CAPTURE)
+    LOG2("@%s", __FUNCTION__);
+    if (mMode == MODE_NONE)
         return INVALID_OPERATION;
 
-    if (buff->driverPrivate != mSessionId)
-        return DEAD_OBJECT;
-
-    ret = v4l2_capture_qbuf(mCameraSensor[mCameraId]->fd, buff->id,
-                      &mBufferPool[mCameraId].bufs[buff->id]);
-
-    if (ret < 0)
-        return UNKNOWN_ERROR;
-
-    mNumCapturegBuffersQueued++;
-
-    return NO_ERROR;
+    return queueBuffer(buff);;
 }
 
 status_t CameraDriver::getThumbnail(CameraBuffer *buff)
@@ -1536,23 +1347,7 @@ status_t CameraDriver::putThumbnail(CameraBuffer *buff)
 
 bool CameraDriver::dataAvailable()
 {
-    LOG2("@%s", __FUNCTION__);
-
-    // For video/recording, make sure driver has a preview and a recording buffer
-    if (mMode == MODE_VIDEO)
-        return mNumRecordingBuffersQueued > 0 && mNumPreviewBuffersQueued > 0;
-
-    // For capture, just make sure driver has a capture buffer
-    if (mMode == MODE_CAPTURE)
-        return mNumCapturegBuffersQueued > 0;
-
-    // For preview, just make sure driver has a preview buffer
-    if (mMode == MODE_PREVIEW)
-        return mNumPreviewBuffersQueued > 0;
-
-    LOGE("Query for data in invalid mode");
-
-    return false;
+    return mBufferPool.numBuffersQueued > 0;
 }
 
 bool CameraDriver::isBufferValid(const CameraBuffer* buffer) const
@@ -1560,225 +1355,9 @@ bool CameraDriver::isBufferValid(const CameraBuffer* buffer) const
     return buffer->driverPrivate == this->mSessionId;
 }
 
-int CameraDriver::grabFrame(struct v4l2_buffer *buf)
-{
-    LOG2("@%s", __FUNCTION__);
-    int ret;
-
-    // Temporary solution for mmap streams.
-    buf->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    buf->memory = V4L2_MEMORY_MMAP;
-
-    ret = v4l2_capture_dqbuf(mCameraSensor[mCameraId]->fd, buf);
-
-    if (ret < 0)
-        return ret;
-
-    return buf->index;
-}
-
-int CameraDriver::v4l2_capture_dqbuf(int fd, struct v4l2_buffer *buf)
-{
-    LOG2("@%s", __FUNCTION__);
-    int ret;
-
-    ret = ioctl(fd, VIDIOC_DQBUF, buf);
-
-    if (ret < 0) {
-        LOGE("error dequeuing buffers");
-        return ret;
-    }
-
-    return buf->index;
-}
-
 ////////////////////////////////////////////////////////////////////
 //                          PRIVATE METHODS
 ////////////////////////////////////////////////////////////////////
-
-status_t CameraDriver::allocatePreviewBuffers()
-{
-    LOG1("@%s", __FUNCTION__);
-    status_t status = NO_ERROR;
-    int allocatedBufs = 0;
-
-    int size = frameSize(mConfig.preview.format,
-            mConfig.preview.padding,
-            mConfig.preview.height);
-
-    mPreviewBuffers = new CameraBuffer[mNumBuffers];
-    if (!mPreviewBuffers) {
-        LOGE("Not enough mem for preview buffer array");
-        status = NO_MEMORY;
-        goto errorFree;
-    }
-
-    LOG1("Allocating %d buffers of size %d", mNumBuffers, size);
-    for (int i = 0; i < mNumBuffers; i++) {
-         mPreviewBuffers[i].buff = NULL;
-         mCallbacks->allocateMemory(&mPreviewBuffers[i],  mConfig.preview.size);
-         if (mPreviewBuffers[i].buff == NULL) {
-             LOGE("Error allocation memory for preview buffers!");
-             status = NO_MEMORY;
-             goto errorFree;
-         }
-         allocatedBufs++;
-         mBufferPool[mCameraId].bufs[i].data = mPreviewBuffers[i].buff->data;
-    }
-    return status;
-
-errorFree:
-    // On error, free the allocated buffers
-    for (int i = 0 ; i < allocatedBufs; i++) {
-        if (mRecordingBuffers[i].buff != NULL) {
-            mRecordingBuffers[i].buff->release(mRecordingBuffers[i].buff);
-            mRecordingBuffers[i].buff = NULL;
-        }
-    }
-    if (mPreviewBuffers)
-        delete [] mPreviewBuffers;
-    return status;
-}
-
-status_t CameraDriver::allocateRecordingBuffers()
-{
-    LOG1("@%s", __FUNCTION__);
-    status_t status = NO_ERROR;
-    int allocatedBufs = 0;
-    int size;
-
-    size = mConfig.recording.width * mConfig.recording.height * 3 / 2;
-
-    mRecordingBuffers = new CameraBuffer[mNumBuffers];
-    if (!mRecordingBuffers) {
-        LOGE("Not enough mem for recording buffer array");
-        status = NO_MEMORY;
-        goto errorFree;
-    }
-
-    for (int i = 0; i < mNumBuffers; i++) {
-        mRecordingBuffers[i].buff = NULL;
-        mCallbacks->allocateMemory(&mRecordingBuffers[i], size);
-        LOG1("allocate recording buffer[%d] buff=%p size=%d",
-                i,
-                mRecordingBuffers[i].buff->data,
-                mRecordingBuffers[i].buff->size);
-        if (mRecordingBuffers[i].buff == NULL) {
-            LOGE("Error allocation memory for recording buffers!");
-            status = NO_MEMORY;
-            goto errorFree;
-        }
-        allocatedBufs++;
-        mBufferPool[mCameraId].bufs[i].data = mRecordingBuffers[i].buff->data;
-    }
-    return status;
-
-errorFree:
-    // On error, free the allocated buffers
-    for (int i = 0 ; i < allocatedBufs; i++) {
-        if (mRecordingBuffers[i].buff != NULL) {
-            mRecordingBuffers[i].buff->release(mRecordingBuffers[i].buff);
-            mRecordingBuffers[i].buff = NULL;
-        }
-    }
-    if (mRecordingBuffers)
-        delete [] mRecordingBuffers;
-    return status;
-}
-
-status_t CameraDriver::allocateSnapshotBuffers()
-{
-    LOG1("@%s", __FUNCTION__);
-    status_t status = NO_ERROR;
-    int allocatedSnaphotBufs = 0;
-    int allocatedPostviewBufs = 0;
-    int snapshotSize = mConfig.snapshot.size;
-
-    LOG1("Allocating %d buffers of size: %d (snapshot), %d (postview)",
-            mConfig.num_snapshot,
-            snapshotSize,
-            mConfig.postview.size);
-    for (int i = 0; i < mConfig.num_snapshot; i++) {
-        mSnapshotBuffers[i].buff = NULL;
-        mCallbacks->allocateMemory(&mSnapshotBuffers[i], snapshotSize);
-        if (mSnapshotBuffers[i].buff == NULL) {
-            LOGE("Error allocation memory for snapshot buffers!");
-            status = NO_MEMORY;
-            goto errorFree;
-        }
-        allocatedSnaphotBufs++;
-        mBufferPool[mCameraId].bufs[i].data = mSnapshotBuffers[i].buff->data;
-
-        mPostviewBuffers[i].buff = NULL;
-        mCallbacks->allocateMemory(&mPostviewBuffers[i], mConfig.postview.size);
-        if (mPostviewBuffers[i].buff == NULL) {
-            LOGE("Error allocation memory for postview buffers!");
-            status = NO_MEMORY;
-            goto errorFree;
-        }
-        allocatedPostviewBufs++;
-        mBufferPool[mCameraId].bufs[i].data = mPostviewBuffers[i].buff->data;
-    }
-    return status;
-
-errorFree:
-    // On error, free the allocated buffers
-    for (int i = 0 ; i < allocatedSnaphotBufs; i++) {
-        if (mSnapshotBuffers[i].buff != NULL) {
-            mSnapshotBuffers[i].buff->release(mSnapshotBuffers[i].buff);
-            mSnapshotBuffers[i].buff = NULL;
-        }
-    }
-    for (int i = 0 ; i < allocatedPostviewBufs; i++) {
-        if (mPostviewBuffers[i].buff != NULL) {
-            mPostviewBuffers[i].buff->release(mPostviewBuffers[i].buff);
-            mPostviewBuffers[i].buff = NULL;
-        }
-    }
-    return status;
-}
-
-status_t CameraDriver::freePreviewBuffers()
-{
-    LOG1("@%s", __FUNCTION__);
-    for (int i = 0 ; i < mNumBuffers; i++) {
-        if (mPreviewBuffers[i].buff != NULL) {
-            mPreviewBuffers[i].buff->release(mPreviewBuffers[i].buff);
-            mPreviewBuffers[i].buff = NULL;
-        }
-    }
-    delete [] mPreviewBuffers;
-    return NO_ERROR;
-}
-
-status_t CameraDriver::freeRecordingBuffers()
-{
-    LOG1("@%s", __FUNCTION__);
-    for (int i = 0 ; i < mNumBuffers; i++) {
-        if (mRecordingBuffers[i].buff != NULL) {
-            mRecordingBuffers[i].buff->release(mRecordingBuffers[i].buff);
-            mRecordingBuffers[i].buff = NULL;
-        }
-    }
-    delete [] mRecordingBuffers;
-    return NO_ERROR;
-}
-
-status_t CameraDriver::freeSnapshotBuffers()
-{
-    LOG1("@%s", __FUNCTION__);
-    for (int i = 0 ; i < mConfig.num_snapshot; i++) {
-        if (mSnapshotBuffers[i].buff != NULL) {
-            mSnapshotBuffers[i].buff->release(mSnapshotBuffers[i].buff);
-            mSnapshotBuffers[i].buff = NULL;
-        }
-        if (mPostviewBuffers[i].buff != NULL) {
-            mPostviewBuffers[i].buff->release(mPostviewBuffers[i].buff);
-            mPostviewBuffers[i].buff = NULL;
-        }
-    }
-    return NO_ERROR;
-}
 
 int CameraDriver::getNumberOfCameras()
 {
