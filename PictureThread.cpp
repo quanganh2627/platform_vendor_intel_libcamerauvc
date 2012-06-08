@@ -18,6 +18,7 @@
 #include "PictureThread.h"
 #include "LogHelper.h"
 #include "Callbacks.h"
+#include "ColorConverter.h"
 #include <utils/Timers.h>
 
 namespace android {
@@ -79,10 +80,11 @@ status_t PictureThread::encodeToJpeg(CameraBuffer *mainBuf, CameraBuffer *thumbB
     LOG1("Out buffer: @%p (%d bytes)", mOutBuf.buff->data, mOutBuf.buff->size);
     LOG1("Exif buffer: @%p (%d bytes)", mExifBuf.buff->data, mExifBuf.buff->size);
     // Convert and encode the thumbnail, if present and EXIF maker is initialized
-    if (thumbBuf != NULL &&
-        thumbBuf->buff != NULL &&
-        thumbBuf->buff->data != NULL &&
-        thumbBuf->buff->size > 0) {
+
+    if (mConfig.exif.enableThumb) {
+
+        LOG1("Encoding thumbnail");
+
         // setup the JpegCompressor input and output buffers
         inBuf.clear();
         inBuf.buf = (unsigned char*)thumbBuf->buff->data;
@@ -107,6 +109,8 @@ status_t PictureThread::encodeToJpeg(CameraBuffer *mainBuf, CameraBuffer *thumbB
             // This is not critical, we can continue with main picture image
             LOGE("Could not encode thumbnail stream!");
         }
+    } else {
+        LOG1("Skipping thumbnail");
     }
     int totalSize = 0;
     unsigned int exifSize = 0;

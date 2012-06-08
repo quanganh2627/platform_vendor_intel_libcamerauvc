@@ -23,11 +23,15 @@ namespace android {
 
 void YUV420ToRGB565(int width, int height, void *src, void *dst);
 
+void YUYVToRGB565(int width, int height, void *src, void *dst);
+
 void NV12ToRGB565(int width, int height, void *src, void *dst);
 
 void NV12ToNV21(int width, int height, void *src, void *dst);
 
 void NV12ToYV12(int width, int height, void *src, void *dst);
+
+void YUYVToNV12(int width, int height, void *src, void *dst);
 
 void YUYVToRGB8888(int width, int height, void *src, void *dst);
 

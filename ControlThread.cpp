@@ -295,18 +295,28 @@ status_t ControlThread::gatherExifInfo(const CameraParameters *params, bool flas
     const char *pAltitude = params->get(CameraParameters::KEY_GPS_ALTITUDE);
     const char *pTimestamp = params->get(CameraParameters::KEY_GPS_TIMESTAMP);
     const char *pProcessingMethod = params->get(CameraParameters::KEY_GPS_PROCESSING_METHOD);
-    float latitude, longitude, altitude;
-    long timestamp;
 
-    latitude = atof(pLatitude);
-    longitude = atof(pLongitude);
-    altitude = atof(pAltitude);
-    timestamp = atol(pTimestamp);
-    fields.setGPSFields(timestamp,
-            latitude,
-            longitude,
-            altitude,
-            pProcessingMethod);
+    if (pLatitude && pLongitude) { // latitude and longitude are required
+        float latitude = 0.0;
+        float longitude = 0.0;
+        float altitude = 0.0;
+        long timestamp = 0;
+
+        latitude = atof(pLatitude);
+        longitude = atof(pLongitude);
+
+        if (pAltitude)
+            altitude = atof(pAltitude);
+
+        if (pTimestamp)
+            timestamp = atol(pTimestamp);
+
+        fields.setGPSFields(timestamp,
+                latitude,
+                longitude,
+                altitude,
+                pProcessingMethod);
+    }
 
     //
     // HARDWARE DATA
@@ -774,8 +784,19 @@ status_t ControlThread::handleMessageTakePicture()
         }
     }
 
+    // see if we support thumbnail
+    bool encodeThumbnail = false;
+    if (origState == STATE_PREVIEW_STILL) { // we don't support thumb for video
+        int width = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH);
+        int height = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT);
+        if (width != 0 && height != 0) {
+            encodeThumbnail = true;
+        }
+    }
+
     // Configure PictureThread
     PictureThread::Config config;
+
     if (origState == STATE_PREVIEW_STILL) {
         gatherExifInfo(&mParameters, false, &config.exif);
     } else if (origState == STATE_RECORDING) { // STATE_RECORDING
@@ -791,10 +812,13 @@ status_t ControlThread::handleMessageTakePicture()
     config.picture.width = width;
     config.picture.height = height;
 
-    config.thumbnail.format = format;
-    config.thumbnail.quality = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY);
-    config.thumbnail.width = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH);
-    config.thumbnail.height = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT);
+    if (encodeThumbnail) {
+        config.thumbnail.format = format;
+        config.thumbnail.quality = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY);
+        config.thumbnail.width = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH);
+        config.thumbnail.height = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT);
+    }
+
     mPictureThread->setConfig(&config);
 
     if (origState == STATE_PREVIEW_STILL) {
@@ -812,10 +836,20 @@ status_t ControlThread::handleMessageTakePicture()
             return status;
         }
 
-        // TODO: get thumbnail
+        if (encodeThumbnail) {
+            if ((status = mDriver->getThumbnail(&postviewBuffer)) != NO_ERROR) {
+                LOGE("Error in grabbing thumbnail!");
+                return status;
+            }
+        }
 
         mCallbacks->shutterSound();
-        status = mPictureThread->encode(&snapshotBuffer, &postviewBuffer);
+
+        if (encodeThumbnail) {
+            status = mPictureThread->encode(&snapshotBuffer, &postviewBuffer);
+        } else {
+            status = mPictureThread->encode(&snapshotBuffer);
+        }
 
     } else {
         // If we are in video mode we simply use the recording buffer for picture encoding
@@ -994,13 +1028,21 @@ status_t ControlThread::handleMessagePictureDone(MessagePicture *msg)
     } else if (mState == STATE_CAPTURE) {
         // Return the picture frames back to driver
         status = mDriver->putSnapshot(&msg->snapshotBuf);
-        status_t status2 = mDriver->putThumbnail(&msg->postviewBuf);
-
-        if (status == DEAD_OBJECT || status2 == DEAD_OBJECT) {
+        if (status == DEAD_OBJECT) {
             LOG1("Stale snapshot buffer returned to driver");
-        } else if (status != NO_ERROR || status2 != NO_ERROR) {
+        } else if (status != NO_ERROR) {
             LOGE("Error in putting snapshot!");
-            return status != NO_ERROR ? status : status2;
+            return status;
+        }
+
+        if (msg->postviewBuf.buff) { // see if thumbnail is present
+            status = mDriver->putThumbnail(&msg->postviewBuf);
+            if (status == DEAD_OBJECT) {
+                LOG1("Stale thumbnail buffer returned to driver");
+            } else if (status != NO_ERROR) {
+                LOGE("Error in putting snapshot!");
+                return status;
+            }
         }
     }
 
@@ -2126,6 +2168,12 @@ bool ControlThread::threadLoop()
                     status = waitForAndExecuteMessage();
                 }
             }
+            break;
+
+        case STATE_CAPTURE:
+            LOG2("In STATE_CAPTURE...");
+            // just wait until we have somthing to do
+            status = waitForAndExecuteMessage();
             break;
 
         default:

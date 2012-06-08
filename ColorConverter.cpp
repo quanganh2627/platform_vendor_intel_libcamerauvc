@@ -30,6 +30,37 @@ inline unsigned char clamp(int x){
     return (x & 0xFF);
 }
 
+void YUYVToNV12(int width, int height, void *src, void *dst)
+{
+    unsigned char *pSrcY = (unsigned char *) src;
+    unsigned char *pSrcU = pSrcY + 1;
+    unsigned char *pSrcV = pSrcY + 3;
+
+    unsigned char *pDstY = (unsigned char *) dst;
+    unsigned char *pDstUV = pDstY + width * height;
+
+    // YUYV format is: yuyvyuyvyuyv...yuyv
+    // NV12 format is: yyyy...yyyyuvuv...uvuvuv
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width / 2; j++) { // 2 y-pixels at a time
+            *pDstY++ = *pSrcY;
+            pSrcY += 2;
+            *pDstY++ = *pSrcY;
+            pSrcY += 2;
+
+            // 4:2:2 chroma has 1/2 the horizontal and FULL vertical resolution of full image
+            // 4:2:0 chroma has 1/2 the horizontal and 1/2 vertical resolution of full image
+            // so skip odd numbered rows
+            if ((i % 2) == 0) {
+                *pDstUV++ = *pSrcU;
+                *pDstUV++ = *pSrcV;
+            }
+            pSrcU += 4;
+            pSrcV += 4;
+        }
+    }
+}
+
 void YUYVToRGB8888(int width, int height, void *src, void *dst)
 {
     int len = width * height * 2;
@@ -116,6 +147,55 @@ void YUV420ToRGB565(int width, int height, void *src, void *dst)
             pu -= linewidth;
             pv -= linewidth;
         }
+    }
+}
+
+void YUYVToRGB565(int width, int height, void *src, void *dst)
+{
+
+    unsigned char *yuvs = (unsigned char *) src;
+    unsigned char *rgbs = (unsigned char *) dst;
+
+    //points to the next luminance value pair
+    int lumPtr = 0;
+    //points to the next chromiance value pair
+    int chrPtr = 1;
+    //points to the next byte output pair of RGB565 value
+    int outPtr = 0;
+
+    while (true) {
+
+        if (lumPtr == width * height * 2) // our work is done here!
+            break;
+
+        //read the luminance
+        int Y1 = yuvs[lumPtr] & 0xff;
+        lumPtr += 2;
+        int Y2 = yuvs[lumPtr] & 0xff;
+        lumPtr += 2;
+
+        //read the chroma
+        int Cb = (yuvs[chrPtr] & 0xff) - 128;
+        chrPtr += 2;
+        int Cr = (yuvs[chrPtr] & 0xff) - 128;
+        chrPtr += 2;
+        int R, G, B;
+
+        //generate first RGB components
+        B = clamp(Y1 + ((454 * Cb) >> 8));
+        G = clamp(Y1 - ((88 * Cb + 183 * Cr) >> 8));
+        R = clamp(Y1 + ((359 * Cr) >> 8));
+        //NOTE: this assume little-endian encoding
+        rgbs[outPtr++]  = (unsigned char) (((G & 0x3c) << 3) | (B >> 3));
+        rgbs[outPtr++]  = (unsigned char) ((R & 0xf8) | (G >> 5));
+
+        //generate second RGB components
+        B = clamp(Y2 + ((454 * Cb) >> 8));
+        G = clamp(Y2 - ((88 * Cb + 183 * Cr) >> 8));
+        R = clamp(Y2 + ((359 * Cr) >> 8));
+        //NOTE: this assume little-endian encoding
+        rgbs[outPtr++]  = (unsigned char) (((G & 0x3c) << 3) | (B >> 3));
+        rgbs[outPtr++]  = (unsigned char) ((R & 0xf8) | (G >> 5));
     }
 }
 

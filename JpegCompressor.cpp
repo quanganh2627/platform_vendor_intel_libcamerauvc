@@ -156,6 +156,10 @@ bool JpegCompressor::convertRawImage(void* src, void* dst, int width, int height
     LOG1("@%s", __FUNCTION__);
     bool ret = true;
     switch (format) {
+    case V4L2_PIX_FMT_YUYV:
+        LOG1("Converting frame from YUYV to RGB565");
+        YUYVToRGB565(width, height, src, dst);
+        break;
     case V4L2_PIX_FMT_NV12:
         LOG1("Converting frame from NV12 to RGB565");
         NV12ToRGB565(width, height, src, dst);

@@ -186,6 +186,8 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
     params->set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, "640x480"); // TODO: consider which sizes to support
     params->setPictureSize(mConfig.snapshot.width, mConfig.snapshot.height);
     params->set(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES,"0x0"); // 0x0 indicates "not supported"
+    params->set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, 0);
+    params->set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, 0);
 
     /**
      * ZOOM
@@ -998,38 +1000,45 @@ status_t CameraDriver::getExposureInfo(CamExifExposureProgramType *exposureProgr
                                        float *exposureBias,
                                        int *aperture)
 {
-    // TODO: implement
-    return INVALID_OPERATION;
+    // TODO: fill these with valid values
+    *exposureProgram = EXIF_EXPOSURE_PROGRAM_NORMAL;
+    *exposureMode = EXIF_EXPOSURE_AUTO;
+    *exposureTime = 0;
+    *exposureBias = 0.0;
+    *aperture = 1;
+    return NO_ERROR;
 }
 
 status_t CameraDriver::getBrightness(float *brightness)
 {
-    // TODO: implement
-    return INVALID_OPERATION;
+    // TODO: fill these with valid values
+    *brightness = 0.0;
+    return NO_ERROR;
 }
 
 status_t CameraDriver::getIsoSpeed(int *isoSpeed)
 {
-    // TODO: implement
-    return INVALID_OPERATION;
+    // TODO: fill these with valid values
+    *isoSpeed = 0;
+    return NO_ERROR;
 }
 
 status_t CameraDriver::getMeteringMode(CamExifMeteringModeType *meteringMode)
 {
-    // TODO: implement
-    return INVALID_OPERATION;
+    *meteringMode = EXIF_METERING_UNKNOWN;
+    return NO_ERROR;
 }
 
 status_t CameraDriver::getAWBMode(CamExifWhiteBalanceType *wbMode)
 {
-    // TODO: implement
-    return INVALID_OPERATION;
+    *wbMode = EXIF_WB_AUTO;
+    return NO_ERROR;
 }
 
 status_t CameraDriver::getSceneMode(CamExifSceneCaptureType *sceneMode)
 {
-    // TODO: implement
-    return INVALID_OPERATION;
+    *sceneMode = EXIF_SCENE_STANDARD;
+    return NO_ERROR;
 }
 
 int CameraDriver::set_zoom(int fd, int zoom)
