@@ -163,7 +163,7 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
     params->setPreviewSize(mConfig.preview.width, mConfig.preview.height);
     params->setPreviewFrameRate(30);
 
-    params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES, "640x480"); // TODO: consider which sizes to support
+    params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES, "640x480");
 
     params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,"30"); // TODO: consider which FPS to support
     params->set(CameraParameters::KEY_PREVIEW_FPS_RANGE,"30000,30000");
@@ -172,7 +172,7 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
     /**
      * RECORDING
      */
-    params->setVideoSize(0, 0);
+    params->setVideoSize(mConfig.recording.width, mConfig.recording.height);
     params->set(CameraParameters::KEY_PREFERRED_PREVIEW_SIZE_FOR_VIDEO, "640x480");
     params->set(CameraParameters::KEY_SUPPORTED_VIDEO_SIZES, ""); // empty string indicates we only support a single stream
     params->set(CameraParameters::KEY_VIDEO_FRAME_FORMAT,
@@ -183,7 +183,7 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
     /**
      * SNAPSHOT
      */
-    params->set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, "640x480"); // TODO: consider which sizes to support
+    params->set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, "640x480");
     params->setPictureSize(mConfig.snapshot.width, mConfig.snapshot.height);
     params->set(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES,"0x0"); // 0x0 indicates "not supported"
     params->set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, 0);

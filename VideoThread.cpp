@@ -18,6 +18,7 @@
 #include "VideoThread.h"
 #include "LogHelper.h"
 #include "Callbacks.h"
+#include "ColorConverter.h"
 
 namespace android {
 
@@ -26,6 +27,10 @@ VideoThread::VideoThread() :
     ,mMessageQueue("VideoThread", MESSAGE_ID_MAX)
     ,mThreadRunning(false)
     ,mCallbacks(Callbacks::getInstance())
+    ,mInputFormat(V4L2_PIX_FMT_NV21)
+    ,mOutputFormat(V4L2_PIX_FMT_NV21)
+    ,mWidth(640)  // VGA
+    ,mHeight(480) // VGA
 {
     LOG1("@%s", __FUNCTION__);
 }
@@ -35,12 +40,25 @@ VideoThread::~VideoThread()
     LOG1("@%s", __FUNCTION__);
 }
 
-status_t VideoThread::video(CameraBuffer *buff, nsecs_t timestamp)
+status_t VideoThread::setConfig(int inputFormat, int outputFormat, int width, int height)
+{
+    mInputFormat = inputFormat;
+    mOutputFormat = outputFormat;
+    mWidth = width;
+    mHeight = height;
+
+    return NO_ERROR;
+}
+
+status_t VideoThread::video(CameraBuffer *inputBuff, CameraBuffer *outputBuff, nsecs_t timestamp)
 {
     LOG2("@%s", __FUNCTION__);
     Message msg;
     msg.id = MESSAGE_ID_VIDEO;
-    msg.data.video.buff = *buff;
+    msg.data.video.inputBuff = *inputBuff;
+    if (outputBuff) {
+        msg.data.video.outputBuff = *outputBuff;
+    }
     msg.data.video.timestamp = timestamp;
     return mMessageQueue.send(&msg);
 }
@@ -52,6 +70,15 @@ status_t VideoThread::flushBuffers()
     msg.id = MESSAGE_ID_FLUSH;
     mMessageQueue.remove(MESSAGE_ID_VIDEO);
     return mMessageQueue.send(&msg, MESSAGE_ID_FLUSH);
+}
+
+void VideoThread::colorConvert(void *input, void *output)
+{
+    if (mInputFormat == V4L2_PIX_FMT_YUYV && mOutputFormat == V4L2_PIX_FMT_NV21) {
+        YUYVToNV21(mWidth, mHeight, input, output);
+    } else {
+        LOGE("unsupported color conversion");
+    }
 }
 
 status_t VideoThread::handleMessageExit()
@@ -67,7 +94,13 @@ status_t VideoThread::handleMessageVideo(MessageVideo *msg)
     LOG2("@%s", __FUNCTION__);
     status_t status = NO_ERROR;
 
-    mCallbacks->videoFrameDone(&msg->buff, msg->timestamp);
+    if (mInputFormat == mOutputFormat) {
+        // No need to color convert
+        mCallbacks->videoFrameDone(&msg->inputBuff, msg->timestamp);
+    } else {
+        colorConvert(msg->inputBuff.buff->data, msg->outputBuff.buff->data);
+        mCallbacks->videoFrameDone(&msg->outputBuff, msg->timestamp);
+    }
 
     return status;
 }

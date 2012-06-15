@@ -31,6 +31,8 @@ void NV12ToNV21(int width, int height, void *src, void *dst);
 
 void NV12ToYV12(int width, int height, void *src, void *dst);
 
+void YUYVToNV21(int width, int height, void *src, void *dst);
+
 void YUYVToNV12(int width, int height, void *src, void *dst);
 
 void YUYVToRGB8888(int width, int height, void *src, void *dst);

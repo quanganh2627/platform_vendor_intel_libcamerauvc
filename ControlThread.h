@@ -330,6 +330,7 @@ private:
     bool mThreadRunning;
     Callbacks *mCallbacks;
 
+    CameraBuffer *mRecordingBuffersConverted;
     CoupledBuffer *mCoupledBuffers;
     int mNumBuffers;
 

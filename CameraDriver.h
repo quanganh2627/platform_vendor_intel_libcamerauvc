@@ -116,7 +116,7 @@ public:
     status_t start(Mode mode);
     status_t stop();
 
-    inline int getNumBuffers() { return mBufferPool.numBuffers; }
+    inline int getNumBuffers() { return NUM_DEFAULT_BUFFERS; }
 
     status_t getPreviewFrame(CameraBuffer *buff);
     status_t putPreviewFrame(CameraBuffer *buff);

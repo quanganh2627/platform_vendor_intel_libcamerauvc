@@ -40,7 +40,11 @@ public:
 // public methods
 public:
 
-    status_t video(CameraBuffer *buff, nsecs_t timestamp);
+    status_t setConfig(int inputFormat, int outputFormat, int width, int height);
+
+    // Input and output buffer supplied only if color conversion is required.
+    // If no color conversion is required simply supply the input buffer
+    status_t video(CameraBuffer *inputBuff, CameraBuffer *outputBuff, nsecs_t timestamp);
     status_t flushBuffers();
 
 // private types
@@ -62,7 +66,8 @@ private:
     //
 
     struct MessageVideo {
-        CameraBuffer buff;
+        CameraBuffer inputBuff;
+        CameraBuffer outputBuff;
         nsecs_t timestamp;
     };
 
@@ -82,6 +87,8 @@ private:
 // private methods
 private:
 
+    void colorConvert(void *input, void *output);
+
     // thread message execution functions
     status_t handleMessageExit();
     status_t handleMessageVideo(MessageVideo *msg);
@@ -100,6 +107,11 @@ private:
     MessageQueue<Message, MessageId> mMessageQueue;
     bool mThreadRunning;
     Callbacks *mCallbacks;
+
+    int mInputFormat;
+    int mOutputFormat;
+    int mWidth;
+    int mHeight;
 
 }; // class VideoThread
 

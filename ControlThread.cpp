@@ -568,9 +568,16 @@ status_t ControlThread::startPreviewCore(bool videoMode)
     if (videoMode) {
         mParameters.getVideoSize(&width, &height);
         mDriver->setVideoFrameFormat(width, height);
+        mVideoThread->setConfig(V4L2_PIX_FMT_YUYV, V4L2_PIX_FMT_NV21, width, height);
     }
 
     mNumBuffers = mDriver->getNumBuffers();
+    mRecordingBuffersConverted = new CameraBuffer[mNumBuffers];
+    int bytes = frameSize(V4L2_PIX_FMT_NV21, width, height);
+    for (int i = 0; i < mNumBuffers; i++) {
+        mCallbacks->allocateMemory(&mRecordingBuffersConverted[i], bytes);
+        mRecordingBuffersConverted[i].id = i;
+    }
     mCoupledBuffers = new CoupledBuffer[mNumBuffers];
     memset(mCoupledBuffers, 0, mNumBuffers * sizeof(CoupledBuffer));
 
@@ -596,7 +603,13 @@ status_t ControlThread::stopPreviewCore()
     } else {
         LOGE("Error stopping driver in preview mode!");
     }
+
+    for (int i = 0; i < mNumBuffers; i++) {
+        mRecordingBuffersConverted[i].buff->release(mRecordingBuffersConverted[i].buff);
+    }
     delete [] mCoupledBuffers;
+    delete [] mRecordingBuffersConverted;
+
     // set to null because frames can be returned to hal in stop state
     // need to check for null in relevant locations
     mCoupledBuffers = NULL;
@@ -994,18 +1007,12 @@ status_t ControlThread::queueCoupledBuffers(int coupledId)
     if (!buff->previewBuffReturned || !buff->recordingBuffReturned ||
             (buff->videoSnapshotBuff && !buff->videoSnapshotBuffReturned))
         return NO_ERROR;
+
     LOG2("Putting buffer back to driver, coupledId = %d",  coupledId);
-    status = mDriver->putRecordingFrame(&buff->recordingBuff);
-    if (status == NO_ERROR) {
-        status = mDriver->putPreviewFrame(&buff->previewBuff);
-        if (status == DEAD_OBJECT) {
-            LOG1("Stale preview buffer returned to driver");
-        } else if (status != NO_ERROR) {
-            LOGE("Error putting preview frame to driver");
-        }
-    } else if (status == DEAD_OBJECT) {
+    status = mDriver->putRecordingFrame(&buff->previewBuff);
+    if (status == DEAD_OBJECT) {
         LOG1("Stale recording buffer returned to driver");
-    } else {
+    } else if (status != NO_ERROR) {
         LOGE("Error putting recording frame to driver");
     }
 
@@ -2101,17 +2108,24 @@ status_t ControlThread::dequeueRecording()
 
     status = mDriver->getRecordingFrame(&buff, &timestamp);
     if (status == NO_ERROR) {
-        mCoupledBuffers[buff.id].recordingBuff = buff;
+        int width, height;
+        mParameters.getVideoSize(&width, &height);
+        CameraBuffer *recBuff = &mRecordingBuffersConverted[buff.id];
+        mCoupledBuffers[buff.id].recordingBuff = *recBuff;
         mCoupledBuffers[buff.id].recordingBuffReturned = false;
         mLastRecordingBuffIndex = buff.id;
         // See if recording has started.
         // If it has, process the buffer
         // If it hasn't, return the buffer to the driver
         if (mState == STATE_RECORDING) {
-            mVideoThread->video(&buff, timestamp);
+            mVideoThread->video(&buff, recBuff, timestamp);
         } else {
             mCoupledBuffers[buff.id].recordingBuffReturned = true;
         }
+
+        mCoupledBuffers[buff.id].previewBuff = buff;
+        mCoupledBuffers[buff.id].previewBuffReturned = false;
+        status = mPreviewThread->preview(&buff);
     } else {
         LOGE("Error: getting recording from driver\n");
     }
@@ -2162,8 +2176,6 @@ bool ControlThread::threadLoop()
                 // make sure driver has data before we ask for some
                 if (mDriver->dataAvailable()) {
                     status = dequeueRecording();
-                    if (status == NO_ERROR)
-                        status = dequeuePreview();
                 } else {
                     status = waitForAndExecuteMessage();
                 }
