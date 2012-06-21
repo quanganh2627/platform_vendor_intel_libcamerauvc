@@ -48,6 +48,7 @@ ControlThread::ControlThread(int cameraId) :
     ,mNumBuffers(mDriver->getNumBuffers())
     ,m_pFaceDetector(0)
     ,mFaceDetectionActive(false)
+    ,mThumbSupported(false)
     ,mLastRecordingBuffIndex(0)
 {
     LOG1("@%s: cameraId = %d", __FUNCTION__, cameraId);
@@ -238,6 +239,22 @@ bool ControlThread::isParameterSet(const char* param)
         return true;
     }
     return false;
+}
+
+bool ControlThread::isThumbSupported(State state)
+{
+    bool supported = false;
+
+    // thumbnail is supported if width and height are non-zero
+    // and shot is snapped in still picture mode. thumbnail is
+    // not supported for video snapshot.
+    if (state == STATE_PREVIEW_STILL || state == STATE_CAPTURE) {
+        int width = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH);
+        int height = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT);
+        supported = (width != 0) && (height != 0);
+    }
+
+    return supported;
 }
 
 status_t ControlThread::gatherExifInfo(const CameraParameters *params, bool flash, exif_attribute_t *exif)
@@ -798,14 +815,7 @@ status_t ControlThread::handleMessageTakePicture()
     }
 
     // see if we support thumbnail
-    bool encodeThumbnail = false;
-    if (origState == STATE_PREVIEW_STILL) { // we don't support thumb for video
-        int width = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH);
-        int height = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT);
-        if (width != 0 && height != 0) {
-            encodeThumbnail = true;
-        }
-    }
+    mThumbSupported = isThumbSupported(origState);
 
     // Configure PictureThread
     PictureThread::Config config;
@@ -825,7 +835,7 @@ status_t ControlThread::handleMessageTakePicture()
     config.picture.width = width;
     config.picture.height = height;
 
-    if (encodeThumbnail) {
+    if (mThumbSupported) {
         config.thumbnail.format = format;
         config.thumbnail.quality = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY);
         config.thumbnail.width = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH);
@@ -849,7 +859,7 @@ status_t ControlThread::handleMessageTakePicture()
             return status;
         }
 
-        if (encodeThumbnail) {
+        if (mThumbSupported) {
             if ((status = mDriver->getThumbnail(&postviewBuffer)) != NO_ERROR) {
                 LOGE("Error in grabbing thumbnail!");
                 return status;
@@ -858,7 +868,7 @@ status_t ControlThread::handleMessageTakePicture()
 
         mCallbacks->shutterSound();
 
-        if (encodeThumbnail) {
+        if (mThumbSupported) {
             status = mPictureThread->encode(&snapshotBuffer, &postviewBuffer);
         } else {
             status = mPictureThread->encode(&snapshotBuffer);
@@ -1042,7 +1052,7 @@ status_t ControlThread::handleMessagePictureDone(MessagePicture *msg)
             return status;
         }
 
-        if (msg->postviewBuf.buff) { // see if thumbnail is present
+        if (mThumbSupported) { // see if thumbnail is present
             status = mDriver->putThumbnail(&msg->postviewBuf);
             if (status == DEAD_OBJECT) {
                 LOG1("Stale thumbnail buffer returned to driver");

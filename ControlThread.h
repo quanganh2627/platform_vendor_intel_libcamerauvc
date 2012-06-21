@@ -274,6 +274,7 @@ private:
 
     // parameters handling functions
     bool isParameterSet(const char* param);
+    bool isThumbSupported(State state);
 
     status_t gatherExifInfo(const CameraParameters *params, bool flash, exif_attribute_t *exif);
 
@@ -338,6 +339,7 @@ private:
     IFaceDetector* m_pFaceDetector;
     bool mFaceDetectionActive;
     bool mAutoFocusActive;
+    bool mThumbSupported;
 
     int mLastRecordingBuffIndex;
 
