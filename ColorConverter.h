@@ -21,21 +21,7 @@
 
 namespace android {
 
-void YUV420ToRGB565(int width, int height, void *src, void *dst);
-
-void YUYVToRGB565(int width, int height, void *src, void *dst);
-
-void NV12ToRGB565(int width, int height, void *src, void *dst);
-
-void NV12ToNV21(int width, int height, void *src, void *dst);
-
-void NV12ToYV12(int width, int height, void *src, void *dst);
-
-void YUYVToNV21(int width, int height, void *src, void *dst);
-
-void YUYVToNV12(int width, int height, void *src, void *dst);
-
-void YUYVToRGB8888(int width, int height, void *src, void *dst);
+status_t colorConvert(int srcFormat, int dstFormat, int width, int height, void *src, void *dst);
 
 const char *cameraParametersFormat(int v4l2Format);
 int V4L2Format(const char *cameraParamsFormat);

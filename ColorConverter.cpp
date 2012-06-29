@@ -125,62 +125,6 @@ void YUYVToRGB8888(int width, int height, void *src, void *dst)
     }
 }
 
-void YUV420ToRGB565(int width, int height, void *src, void *dst)
-{
-    int line, col, linewidth;
-    int y, u, v, yy, vr, ug, vg, ub;
-    int r, g, b;
-    const unsigned char *py, *pu, *pv;
-    unsigned short *rgbs = (unsigned short *) dst;
-
-    linewidth = width >> 1;
-    py = (unsigned char *) src;
-    pu = py + (width * height);
-    pv = pu + (width * height) / 4;
-
-    y = *py++;
-    yy = y << 8;
-    u = *pu - 128;
-    ug = 88 * u;
-    ub = 454 * u;
-    v = *pv - 128;
-    vg = 183 * v;
-    vr = 359 * v;
-
-    for (line = 0; line < height; line++) {
-        for (col = 0; col < width; col++) {
-            r = (yy + vr) >> 8;
-            g = (yy - ug - vg) >> 8;
-            b = (yy + ub ) >> 8;
-            if (r < 0) r = 0;
-            if (r > 255) r = 255;
-            if (g < 0) g = 0;
-            if (g > 255) g = 255;
-            if (b < 0) b = 0;
-            if (b > 255) b = 255;
-            *rgbs++ = (((unsigned short)r>>3)<<11) | (((unsigned short)g>>2)<<5)
-                   | (((unsigned short)b>>3)<<0);
-
-            y = *py++;
-            yy = y << 8;
-            if (col & 1) {
-                pu++;
-                pv++;
-                u = *pu - 128;
-                ug = 88 * u;
-                ub = 454 * u;
-                v = *pv - 128;
-                vg = 183 * v;
-                vr = 359 * v;
-            }
-        }
-        if ((line & 1) == 0) {
-            pu -= linewidth;
-            pv -= linewidth;
-        }
-    }
-}
-
 void YUYVToRGB565(int width, int height, void *src, void *dst)
 {
 
@@ -329,6 +273,67 @@ void NV12ToYV12(int width, int height, void *src, void *dst)
         *dstPtrV++ = srcPtr[i + 1];
         *dstPtrU++ = srcPtr[i];
     }
+}
+
+static status_t colorConvertYUYV(int dstFormat, int width, int height, void *src, void *dst)
+{
+    switch (dstFormat) {
+    case V4L2_PIX_FMT_NV12:
+        YUYVToNV12(width, height, src, dst);
+        break;
+    case V4L2_PIX_FMT_NV21:
+        YUYVToNV21(width, height, src, dst);
+        break;
+    case V4L2_PIX_FMT_RGB565:
+        YUYVToRGB565(width, height, src, dst);
+        break;
+    case V4L2_PIX_FMT_RGB32:
+        YUYVToRGB8888(width, height, src, dst);
+        break;
+    default:
+        LOGE("Invalid color format (dest)");
+        return BAD_VALUE;
+    };
+
+    return NO_ERROR;
+}
+
+static status_t colorConvertNV12(int dstFormat, int width, int height, void *src, void *dst)
+{
+    switch (dstFormat) {
+    case V4L2_PIX_FMT_NV21:
+        NV12ToNV21(width, height, src, dst);
+        break;
+    case V4L2_PIX_FMT_YUV420:
+        NV12ToYV12(width, height, src, dst);
+        break;
+    case V4L2_PIX_FMT_RGB565:
+        NV12ToRGB565(width, height, src, dst);
+        break;
+    default:
+        LOGE("Invalid color format (dest)");
+        return BAD_VALUE;
+    };
+
+    return NO_ERROR;
+}
+
+status_t colorConvert(int srcFormat, int dstFormat, int width, int height, void *src, void *dst)
+{
+    if (srcFormat == dstFormat) {
+        LOGE("src format is the same as dst format");
+        return BAD_VALUE;
+    }
+
+    switch (srcFormat) {
+    case V4L2_PIX_FMT_YUYV:
+        return colorConvertYUYV(dstFormat, width, height, src, dst);
+    case V4L2_PIX_FMT_NV12:
+        return colorConvertNV12(dstFormat, width, height, src, dst);
+    default:
+        LOGE("invalid (source) color format");
+        return BAD_VALUE;
+    };
 }
 
 const char *cameraParametersFormat(int v4l2Format)

@@ -154,25 +154,7 @@ JpegCompressor::~JpegCompressor()
 bool JpegCompressor::convertRawImage(void* src, void* dst, int width, int height, int format)
 {
     LOG1("@%s", __FUNCTION__);
-    bool ret = true;
-    switch (format) {
-    case V4L2_PIX_FMT_YUYV:
-        LOG1("Converting frame from YUYV to RGB565");
-        YUYVToRGB565(width, height, src, dst);
-        break;
-    case V4L2_PIX_FMT_NV12:
-        LOG1("Converting frame from NV12 to RGB565");
-        NV12ToRGB565(width, height, src, dst);
-        break;
-    case V4L2_PIX_FMT_YUV420:
-        LOG1("Converting frame from YUV420 to RGB565");
-        YUV420ToRGB565(width, height, src, dst);
-        break;
-    default:
-        LOGE("Unsupported color format: %s", v4l2Fmt2Str(format));
-        ret = false;
-    }
-    return ret;
+    return colorConvert(format, V4L2_PIX_FMT_RGB565, width, height, src, dst) == NO_ERROR;
 }
 
 // Takes YUV data (NV12 or YUV420) and outputs JPEG encoded stream

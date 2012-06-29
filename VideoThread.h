@@ -87,8 +87,6 @@ private:
 // private methods
 private:
 
-    void colorConvert(void *input, void *output);
-
     // thread message execution functions
     status_t handleMessageExit();
     status_t handleMessageVideo(MessageVideo *msg);

@@ -72,15 +72,6 @@ status_t VideoThread::flushBuffers()
     return mMessageQueue.send(&msg, MESSAGE_ID_FLUSH);
 }
 
-void VideoThread::colorConvert(void *input, void *output)
-{
-    if (mInputFormat == V4L2_PIX_FMT_YUYV && mOutputFormat == V4L2_PIX_FMT_NV21) {
-        YUYVToNV21(mWidth, mHeight, input, output);
-    } else {
-        LOGE("unsupported color conversion");
-    }
-}
-
 status_t VideoThread::handleMessageExit()
 {
     LOG1("@%s", __FUNCTION__);
@@ -98,7 +89,8 @@ status_t VideoThread::handleMessageVideo(MessageVideo *msg)
         // No need to color convert
         mCallbacks->videoFrameDone(&msg->inputBuff, msg->timestamp);
     } else {
-        colorConvert(msg->inputBuff.buff->data, msg->outputBuff.buff->data);
+        colorConvert(mInputFormat, mOutputFormat, mWidth, mHeight,
+                msg->inputBuff.buff->data, msg->outputBuff.buff->data);
         mCallbacks->videoFrameDone(&msg->outputBuff, msg->timestamp);
     }
 

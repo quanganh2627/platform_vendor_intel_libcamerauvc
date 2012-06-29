@@ -164,7 +164,9 @@ status_t PreviewThread::handleMessagePreview(MessagePreview *msg)
                 goto exit;
             }
             LOG2("Preview Color Conversion to RGBA, stride: %d height: %d", stride, mPreviewHeight);
-            YUYVToRGB8888(mPreviewWidth, mPreviewHeight, msg->buff.buff->data, tmpRGBA);
+            colorConvert(V4L2_PIX_FMT_YUYV, V4L2_PIX_FMT_RGB32,
+                    mPreviewWidth, mPreviewHeight,
+                    msg->buff.buff->data, tmpRGBA);
             memcpy(dst,
                     tmpRGBA,
                     stride*mPreviewHeight*4
@@ -182,18 +184,7 @@ status_t PreviewThread::handleMessagePreview(MessagePreview *msg)
         allocatePreviewBuf();
     }
     if(mPreviewBuf.buff) {
-        switch(mPreviewFormat) {
-
-        case V4L2_PIX_FMT_YUV420:
-            NV12ToYV12(mPreviewWidth, mPreviewHeight, msg->buff.buff->data, mPreviewBuf.buff->data);
-            break;
-
-        case V4L2_PIX_FMT_NV21:
-            NV12ToNV21(mPreviewWidth, mPreviewHeight, msg->buff.buff->data, mPreviewBuf.buff->data);
-            break;
-
-        // mPreviewFormat is checked when set
-        }
+        // TODO: color conversion for application. need to get output format from control thread
         mCallbacks->previewFrameDone(&mPreviewBuf);
     }
     mDebugFPS->update(); // update fps counter
