@@ -41,14 +41,12 @@ PreviewThread::PreviewThread(ICallbackPreview *previewDone) :
     ,mOutputFormat(0)
 {
     LOG1("@%s", __FUNCTION__);
-    memset(&mPreviewBuf, 0, sizeof(CameraBuffer));
 }
 
 PreviewThread::~PreviewThread()
 {
     LOG1("@%s", __FUNCTION__);
     mDebugFPS.clear();
-    freePreviewBuf();
 }
 
 status_t PreviewThread::setPreviewWindow(struct preview_stream_ops *window)
@@ -73,12 +71,13 @@ status_t PreviewThread::setPreviewConfig(int preview_width, int preview_height,
     return mMessageQueue.send(&msg);
 }
 
-status_t PreviewThread::preview(CameraBuffer *buff)
+status_t PreviewThread::preview(CameraBuffer *inputBuff, CameraBuffer *outputBuff)
 {
     LOG2("@%s", __FUNCTION__);
     Message msg;
     msg.id = MESSAGE_ID_PREVIEW;
-    msg.data.preview.buff = *buff;
+    msg.data.preview.inputBuff = *inputBuff;
+    msg.data.preview.outputBuff = *outputBuff;
     return mMessageQueue.send(&msg);
 }
 
@@ -105,8 +104,8 @@ status_t PreviewThread::handleMessagePreview(MessagePreview *msg)
     status_t status = NO_ERROR;
 
     LOG2("Buff: id = %d, data = %p",
-            msg->buff.id,
-            msg->buff.buff->data);
+            msg->inputBuff.id,
+            msg->inputBuff.buff->data);
 
     if (mPreviewWindow != 0) {
         buffer_handle_t *buf;
@@ -141,7 +140,7 @@ status_t PreviewThread::handleMessagePreview(MessagePreview *msg)
             LOG2("Preview Color Conversion to RGBA, stride: %d height: %d", stride, mPreviewHeight);
             colorConvert(V4L2_PIX_FMT_YUYV, V4L2_PIX_FMT_RGB32,
                     mPreviewWidth, mPreviewHeight,
-                    msg->buff.buff->data, tmpRGBA);
+                    msg->inputBuff.buff->data, tmpRGBA);
             memcpy(dst,
                     tmpRGBA,
                     stride*mPreviewHeight*4
@@ -155,16 +154,11 @@ status_t PreviewThread::handleMessagePreview(MessagePreview *msg)
         buf = NULL;
     }
 
-    if(!mPreviewBuf.buff) {
-        allocatePreviewBuf();
-    }
-    if(mPreviewBuf.buff) {
-        // TODO: color conversion for application. need to get output format from control thread
-        mCallbacks->previewFrameDone(&mPreviewBuf);
-    }
+    mCallbacks->previewFrameDone(&msg->outputBuff);
     mDebugFPS->update(); // update fps counter
+
 exit:
-    mPreviewDoneCallback->previewDone(&msg->buff);
+    mPreviewDoneCallback->previewDone(&msg->inputBuff);
 
     return status;
 }
@@ -211,8 +205,6 @@ status_t PreviewThread::handleMessageSetPreviewConfig(MessageSetPreviewConfig *m
         }
         mPreviewWidth = msg->width;
         mPreviewHeight = msg->height;
-
-        allocatePreviewBuf();
     }
 
     mInputFormat = msg->inputFormat;
@@ -295,25 +287,6 @@ status_t PreviewThread::requestExitAndWait()
 
     // propagate call to base class
     return Thread::requestExitAndWait();
-}
-
-void PreviewThread::freePreviewBuf(void)
-{
-    if (mPreviewBuf.buff) {
-        LOG1("releasing existing preview buffer\n");
-        mPreviewBuf.buff->release(mPreviewBuf.buff);
-        mPreviewBuf.buff = 0;
-    }
-}
-
-void PreviewThread::allocatePreviewBuf(void)
-{
-    LOG1("allocating the preview buffer\n");
-    freePreviewBuf();
-    mCallbacks->allocateMemory(&mPreviewBuf, mPreviewWidth*mPreviewHeight*3/2);
-    if(!mPreviewBuf.buff) {
-        LOGE("getting memory failed\n");
-    }
 }
 
 } // namespace android

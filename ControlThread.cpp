@@ -40,6 +40,7 @@ ControlThread::ControlThread(int cameraId) :
     ,mPreviewThread(new PreviewThread((ICallbackPreview *) this))
     ,mPictureThread(new PictureThread((ICallbackPicture *) this))
     ,mVideoThread(new VideoThread())
+    ,mPipeThread(new PipeThread())
     ,mMessageQueue("ControlThread", (int) MESSAGE_ID_MAX)
     ,mState(STATE_STOPPED)
     ,mThreadRunning(false)
@@ -56,6 +57,8 @@ ControlThread::ControlThread(int cameraId) :
 
     initDefaultParams();
 
+    mPipeThread->setThreads(mPreviewThread, mVideoThread);
+
     status_t status = mPreviewThread->run();
     if (status != NO_ERROR) {
         LOGE("Error starting preview thread!");
@@ -67,6 +70,10 @@ ControlThread::ControlThread(int cameraId) :
     status = mVideoThread->run();
     if (status != NO_ERROR) {
         LOGW("Error starting video thread!");
+    }
+    status = mPipeThread->run();
+    if (status != NO_ERROR) {
+        LOGW("Error starting pipe thread!");
     }
     m_pFaceDetector=FaceDetectorFactory::createDetector(mCallbacks);
     if (m_pFaceDetector != 0){
@@ -89,6 +96,9 @@ ControlThread::~ControlThread()
 
     mVideoThread->requestExitAndWait();
     mVideoThread.clear();
+
+    mPipeThread->requestExitAndWait();
+    mPipeThread.clear();
 
     if (mDriver != NULL) {
         delete mDriver;
@@ -610,13 +620,15 @@ status_t ControlThread::startPreviewCore(bool videoMode)
         mVideoThread->setConfig(mCameraFormat, videoFormat, videoWidth, videoHeight);
     }
 
+    mPipeThread->setConfig(mCameraFormat, previewFormat, previewWidth, previewHeight);
+
     mNumBuffers = mDriver->getNumBuffers();
-    mRecordingBuffersConverted = new CameraBuffer[mNumBuffers];
-    int bytes = frameSize(videoFormat, videoWidth, videoHeight);
+    mConversionBuffers = new CameraBuffer[mNumBuffers];
+    int bytes = frameSize(previewFormat, previewWidth, previewHeight);
     for (int i = 0; i < mNumBuffers; i++) {
-        mCallbacks->allocateMemory(&mRecordingBuffersConverted[i], bytes);
-        mRecordingBuffersConverted[i].id = i;
-        mRecordingBuffersConverted[i].format = videoFormat;
+        mCallbacks->allocateMemory(&mConversionBuffers[i], bytes);
+        mConversionBuffers[i].id = i;
+        mConversionBuffers[i].format = previewFormat;
     }
     mCoupledBuffers = new CoupledBuffer[mNumBuffers];
     memset(mCoupledBuffers, 0, mNumBuffers * sizeof(CoupledBuffer));
@@ -636,7 +648,15 @@ status_t ControlThread::stopPreviewCore()
 {
     LOG1("@%s", __FUNCTION__);
     status_t status = NO_ERROR;
+
+    status = mPipeThread->flushBuffers();
+    if (status != NO_ERROR)
+        LOGE("error flushing pipe buffers");
+
     status = mPreviewThread->flushBuffers();
+    if (status != NO_ERROR)
+        LOGE("error flushing preview buffers");
+
     status = mDriver->stop();
     if (status == NO_ERROR) {
         mState = STATE_STOPPED;
@@ -645,10 +665,10 @@ status_t ControlThread::stopPreviewCore()
     }
 
     for (int i = 0; i < mNumBuffers; i++) {
-        mRecordingBuffersConverted[i].buff->release(mRecordingBuffersConverted[i].buff);
+        mConversionBuffers[i].buff->release(mConversionBuffers[i].buff);
     }
     delete [] mCoupledBuffers;
-    delete [] mRecordingBuffersConverted;
+    delete [] mConversionBuffers;
 
     // set to null because frames can be returned to hal in stop state
     // need to check for null in relevant locations
@@ -778,13 +798,6 @@ status_t ControlThread::handleMessageStopRecording()
     status_t status = NO_ERROR;
 
     if (mState == STATE_RECORDING) {
-        /*
-         * Even if startRecording was called from PREVIEW_STILL mode, we can
-         * switch back to PREVIEW_VIDEO now since we got a startRecording
-         */
-        status = mVideoThread->flushBuffers();
-        if (status != NO_ERROR)
-            LOGE("Error flushing video thread");
         mState = STATE_PREVIEW_VIDEO;
     } else {
         LOGE("Error stopping recording. Invalid state!");
@@ -2121,7 +2134,8 @@ status_t ControlThread::dequeuePreview()
             mCoupledBuffers[buff.id].previewBuff = buff;
             mCoupledBuffers[buff.id].previewBuffReturned = false;
         }
-        status = mPreviewThread->preview(&buff);
+        CameraBuffer *convBuff = &mConversionBuffers[buff.id];
+        status = mPipeThread->preview(&buff, convBuff);
         if (status != NO_ERROR)
             LOGE("Error sending buffer to preview thread");
     } else {
@@ -2141,22 +2155,23 @@ status_t ControlThread::dequeueRecording()
     if (status == NO_ERROR) {
         int width, height;
         mParameters.getVideoSize(&width, &height);
-        CameraBuffer *recBuff = &mRecordingBuffersConverted[buff.id];
-        mCoupledBuffers[buff.id].recordingBuff = *recBuff;
+        CameraBuffer *convBuff = &mConversionBuffers[buff.id];
+        mCoupledBuffers[buff.id].recordingBuff = *convBuff;
         mCoupledBuffers[buff.id].recordingBuffReturned = false;
         mLastRecordingBuffIndex = buff.id;
         // See if recording has started.
         // If it has, process the buffer
         // If it hasn't, return the buffer to the driver
-        if (mState == STATE_RECORDING) {
-            mVideoThread->video(&buff, recBuff, timestamp);
-        } else {
-            mCoupledBuffers[buff.id].recordingBuffReturned = true;
-        }
 
         mCoupledBuffers[buff.id].previewBuff = buff;
         mCoupledBuffers[buff.id].previewBuffReturned = false;
-        status = mPreviewThread->preview(&buff);
+        if (mState == STATE_RECORDING) {
+            mPipeThread->previewVideo(&buff, convBuff, timestamp);
+        } else {
+            mCoupledBuffers[buff.id].recordingBuffReturned = true;
+            status = mPipeThread->preview(&buff, convBuff);
+        }
+
     } else {
         LOGE("Error: getting recording from driver\n");
     }

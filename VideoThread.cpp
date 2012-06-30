@@ -50,15 +50,12 @@ status_t VideoThread::setConfig(int inputFormat, int outputFormat, int width, in
     return NO_ERROR;
 }
 
-status_t VideoThread::video(CameraBuffer *inputBuff, CameraBuffer *outputBuff, nsecs_t timestamp)
+status_t VideoThread::video(CameraBuffer *buff, nsecs_t timestamp)
 {
     LOG2("@%s", __FUNCTION__);
     Message msg;
     msg.id = MESSAGE_ID_VIDEO;
-    msg.data.video.inputBuff = *inputBuff;
-    if (outputBuff) {
-        msg.data.video.outputBuff = *outputBuff;
-    }
+    msg.data.video.buff= *buff;
     msg.data.video.timestamp = timestamp;
     return mMessageQueue.send(&msg);
 }
@@ -85,14 +82,7 @@ status_t VideoThread::handleMessageVideo(MessageVideo *msg)
     LOG2("@%s", __FUNCTION__);
     status_t status = NO_ERROR;
 
-    if (mInputFormat == mOutputFormat) {
-        // No need to color convert
-        mCallbacks->videoFrameDone(&msg->inputBuff, msg->timestamp);
-    } else {
-        colorConvert(mInputFormat, mOutputFormat, mWidth, mHeight,
-                msg->inputBuff.buff->data, msg->outputBuff.buff->data);
-        mCallbacks->videoFrameDone(&msg->outputBuff, msg->timestamp);
-    }
+    mCallbacks->videoFrameDone(&msg->buff, msg->timestamp);
 
     return status;
 }

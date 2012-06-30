@@ -6,6 +6,7 @@ LOCAL_SRC_FILES := \
 	PreviewThread.cpp \
 	PictureThread.cpp \
 	VideoThread.cpp \
+	PipeThread.cpp \
 	CameraDriver.cpp \
 	DebugFrameRate.cpp \
 	Callbacks.cpp \

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2012 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_LIBCAMERA_VIDEO_THREAD_H
-#define ANDROID_LIBCAMERA_VIDEO_THREAD_H
+#ifndef ANDROID_LIBCAMERA_PIPE_THREAD_H
+#define ANDROID_LIBCAMERA_PIPE_THREAD_H
 
 #include <utils/Timers.h>
 #include <utils/threads.h>
@@ -24,14 +24,25 @@
 
 namespace android {
 
-class Callbacks;
+class PreviewThread;
+class VideoThread;
 
-class VideoThread : public Thread {
+class PipeThread : public Thread {
+
+// public types
+public:
+
+    struct Config {
+        int width;
+        int height;
+        int inputFormat;
+        int outputFormat;
+    };
 
 // constructor destructor
 public:
-    VideoThread();
-    virtual ~VideoThread();
+    PipeThread();
+    virtual ~PipeThread();
 
 // Thread overrides
 public:
@@ -40,11 +51,10 @@ public:
 // public methods
 public:
 
-    status_t setConfig(int inputFormat, int outputFormat, int width, int height);
-
-    // Input and output buffer supplied only if color conversion is required.
-    // If no color conversion is required simply supply the input buffer
-    status_t video(CameraBuffer *buff, nsecs_t timestamp);
+    void setThreads(sp<PreviewThread> &previewThread, sp<VideoThread> &videoThread);
+    void setConfig(int inputFormat, int outputForamt, int width, int height);
+    status_t preview(CameraBuffer *input, CameraBuffer *output);
+    status_t previewVideo(CameraBuffer *input, CameraBuffer *output, nsecs_t timestamp);
     status_t flushBuffers();
 
 // private types
@@ -54,7 +64,8 @@ private:
     enum MessageId {
 
         MESSAGE_ID_EXIT = 0,            // call requestExitAndWait
-        MESSAGE_ID_VIDEO,
+        MESSAGE_ID_PREVIEW,
+        MESSAGE_ID_PREVIEW_VIDEO,
         MESSAGE_ID_FLUSH,
 
         // max number of messages
@@ -65,16 +76,25 @@ private:
     // message data structures
     //
 
-    struct MessageVideo {
-        CameraBuffer buff;
+    struct MessagePreview {
+        CameraBuffer input;
+        CameraBuffer output;
+    };
+
+    struct MessagePreviewVideo {
+        CameraBuffer input;
+        CameraBuffer output;
         nsecs_t timestamp;
     };
 
     // union of all message data
     union MessageData {
 
-        // MESSAGE_ID_VIDEO
-        MessageVideo video;
+        // MESSAGE_ID_PREVIEW
+        MessagePreview preview;
+
+        // MESSAGE_ID_PREVIEW_VIDEO
+        MessagePreviewVideo previewVideo;
     };
 
     // message id and message data
@@ -88,7 +108,8 @@ private:
 
     // thread message execution functions
     status_t handleMessageExit();
-    status_t handleMessageVideo(MessageVideo *msg);
+    status_t handleMessagePreview(MessagePreview *msg);
+    status_t handleMessagePreviewVideo(MessagePreviewVideo *msg);
     status_t handleMessageFlush();
 
     // main message function
@@ -101,17 +122,18 @@ private:
 // private data
 private:
 
-    MessageQueue<Message, MessageId> mMessageQueue;
-    bool mThreadRunning;
-    Callbacks *mCallbacks;
-
     int mInputFormat;
     int mOutputFormat;
     int mWidth;
     int mHeight;
 
-}; // class VideoThread
+    sp<PreviewThread> mPreviewThread;
+    sp<VideoThread> mVideoThread;
+    MessageQueue<Message, MessageId> mMessageQueue;
+    bool mThreadRunning;
+
+}; // class PipeThread
 
 }; // namespace android
 
-#endif // ANDROID_LIBCAMERA_VIDEO_THREAD_H
+#endif // ANDROID_LIBCAMERA_PIPE_THREAD_H

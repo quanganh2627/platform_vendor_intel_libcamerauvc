@@ -50,7 +50,7 @@ public:
 // public methods
 public:
 
-    status_t preview(CameraBuffer *buff);
+    status_t preview(CameraBuffer *inputBuff, CameraBuffer *outputBuff);
     status_t setPreviewWindow(struct preview_stream_ops *window);
     status_t setPreviewConfig(int preview_width, int preview_height, int input_format, int output_format);
     status_t flushBuffers();
@@ -79,7 +79,8 @@ private:
     //
 
     struct MessagePreview {
-        CameraBuffer buff;
+        CameraBuffer inputBuff;
+        CameraBuffer outputBuff;
     };
 
     struct MessageSetPreviewWindow {
@@ -125,10 +126,6 @@ private:
     // main message function
     status_t waitForAndExecuteMessage();
 
-    // buffer helper
-    void freePreviewBuf(void);
-    void allocatePreviewBuf(void);
-
 // inherited from Thread
 private:
     virtual bool threadLoop();
@@ -148,8 +145,6 @@ private:
     int mPreviewHeight;
     int mInputFormat;
     int mOutputFormat;
-
-    CameraBuffer mPreviewBuf;
 
 }; // class PreviewThread
 

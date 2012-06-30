@@ -24,6 +24,7 @@
 #include "PreviewThread.h"
 #include "PictureThread.h"
 #include "VideoThread.h"
+#include "PipeThread.h"
 #include "CameraCommon.h"
 #include "IFaceDetectionListener.h"
 namespace android {
@@ -327,13 +328,14 @@ private:
     sp<PreviewThread> mPreviewThread;
     sp<PictureThread> mPictureThread;
     sp<VideoThread> mVideoThread;
+    sp<PipeThread> mPipeThread;
 
     MessageQueue<Message, MessageId> mMessageQueue;
     State mState;
     bool mThreadRunning;
     Callbacks *mCallbacks;
 
-    CameraBuffer *mRecordingBuffersConverted;
+    CameraBuffer *mConversionBuffers;
     CoupledBuffer *mCoupledBuffers;
     int mNumBuffers;
 
