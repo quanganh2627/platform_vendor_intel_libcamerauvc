@@ -37,7 +37,8 @@ PreviewThread::PreviewThread(ICallbackPreview *previewDone) :
     ,mPreviewWindow(NULL)
     ,mPreviewWidth(640)
     ,mPreviewHeight(480)
-    ,mPreviewFormat(V4L2_PIX_FMT_YUYV)
+    ,mInputFormat(0)
+    ,mOutputFormat(0)
 {
     LOG1("@%s", __FUNCTION__);
     memset(&mPreviewBuf, 0, sizeof(CameraBuffer));
@@ -50,33 +51,6 @@ PreviewThread::~PreviewThread()
     freePreviewBuf();
 }
 
-void PreviewThread::getDefaultParameters(CameraParameters *params)
-{
-    LOG2("@%s", __FUNCTION__);
-    if (!params) {
-        LOGE("params is null!");
-        return;
-    }
-
-    /**
-     * PREVIEW
-     */
-    params->setPreviewFormat(cameraParametersFormat(mPreviewFormat));
-
-    char previewFormats[100] = {0};
-    if (snprintf(previewFormats, sizeof(previewFormats), "%s,%s",
-                 CameraParameters::PIXEL_FORMAT_YUV420SP,
-                 CameraParameters::PIXEL_FORMAT_YUV420P) < 0) {
-        LOGE("Could not generate %s string: %s", CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS, strerror(errno));
-        return;
-    }
-    else {
-        LOG1("preview format %s\n", previewFormats);
-    }
-     params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS, previewFormats);
-
-}
-
 status_t PreviewThread::setPreviewWindow(struct preview_stream_ops *window)
 {
     LOG1("@%s", __FUNCTION__);
@@ -87,14 +61,15 @@ status_t PreviewThread::setPreviewWindow(struct preview_stream_ops *window)
 }
 
 status_t PreviewThread::setPreviewConfig(int preview_width, int preview_height,
-                                         int preview_format)
+        int input_format, int output_format)
 {
     LOG1("@%s", __FUNCTION__);
     Message msg;
     msg.id = MESSAGE_ID_SET_PREVIEW_CONFIG;
     msg.data.setPreviewConfig.width = preview_width;
     msg.data.setPreviewConfig.height = preview_height;
-    msg.data.setPreviewConfig.format = preview_format;
+    msg.data.setPreviewConfig.inputFormat = input_format;
+    msg.data.setPreviewConfig.outputFormat = output_format;
     return mMessageQueue.send(&msg);
 }
 
@@ -218,8 +193,8 @@ status_t PreviewThread::handleMessageSetPreviewWindow(MessageSetPreviewWindow *m
 
 status_t PreviewThread::handleMessageSetPreviewConfig(MessageSetPreviewConfig *msg)
 {
-    LOG1("@%s: width = %d, height = %d, format = %x", __FUNCTION__,
-         msg->width, msg->height, msg->format);
+    LOG1("@%s: width = %d, height = %d", __FUNCTION__,
+         msg->width, msg->height);
     status_t status = NO_ERROR;
 
     if ((msg->width != 0 && msg->height != 0) &&
@@ -240,20 +215,8 @@ status_t PreviewThread::handleMessageSetPreviewConfig(MessageSetPreviewConfig *m
         allocatePreviewBuf();
     }
 
-    if ((msg->format != 0) && (mPreviewFormat != msg->format)) {
-        switch(msg->format) {
-        case V4L2_PIX_FMT_YUV420:
-        case V4L2_PIX_FMT_NV21:
-        case V4L2_PIX_FMT_YUYV:
-            mPreviewFormat = msg->format;
-            LOG1("Setting new preview format: %s", v4l2Fmt2Str(mPreviewFormat));
-            break;
-
-        default:
-            LOGE("Invalid preview format: %x:%s", msg->format, v4l2Fmt2Str(msg->format));
-            status = -1;
-        }
-    }
+    mInputFormat = msg->inputFormat;
+    mOutputFormat = msg->outputFormat;
 
     return NO_ERROR;
 }

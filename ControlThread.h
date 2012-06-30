@@ -233,6 +233,8 @@ private:
 // private methods
 private:
 
+    void initDefaultParams();
+
     // state machine helper functions
     status_t restartPreview(bool videoMode);
     status_t startPreviewCore(bool videoMode);
@@ -342,6 +344,7 @@ private:
     bool mThumbSupported;
 
     int mLastRecordingBuffIndex;
+    int mCameraFormat;
 
 }; // class ControlThread
 

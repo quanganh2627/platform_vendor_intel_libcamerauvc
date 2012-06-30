@@ -134,12 +134,14 @@ public:
     bool dataAvailable();
     bool isBufferValid(const CameraBuffer * buffer) const;
 
-    status_t setPreviewFrameFormat(int width, int height, int format = 0);
-    status_t setPostviewFrameFormat(int width, int height, int format);
-    status_t setSnapshotFrameFormat(int width, int height, int format);
-    status_t setVideoFrameFormat(int width, int height, int format = 0);
+    status_t setPreviewFrameSize(int width, int height);
+    status_t setPostviewFrameSize(int width, int height);
+    status_t setSnapshotFrameSize(int width, int height);
+    status_t setVideoFrameSize(int width, int height);
 
-    inline int getSnapshotPixelFormat() { return mConfig.snapshot.format; }
+    // The camera sensor YUV format
+    inline int getFormat() { return mFormat; }
+
     void getVideoSize(int *width, int *height);
 
     void getZoomRatios(Mode mode, CameraParameters *params);
@@ -186,7 +188,6 @@ private:
     static const int NUM_DEFAULT_BUFFERS = 4;
 
     struct FrameInfo {
-        int format;     // V4L2 format
         int width;      // Frame width
         int height;     // Frame height
         int padding;    // Frame padding width
@@ -241,7 +242,7 @@ private:
     // Open, Close, Configure methods
     int openDevice();
     void closeDevice();
-    int configureDevice(Mode deviceMode, int w, int h, int format, int numBuffers);
+    int configureDevice(Mode deviceMode, int w, int h, int numBuffers);
     int deconfigureDevice();
     int startDevice();
     void stopDevice();
@@ -259,10 +260,9 @@ private:
     status_t v4l2_capture_querycap(int fd, struct v4l2_capability *cap);
     int detectDeviceResolutions();
     int set_capture_mode(Mode deviceMode);
-    int v4l2_capture_try_format(int fd, int *w, int *h, int *format);
-    int v4l2_capture_g_framerate(int fd, float * framerate, int width,
-                                          int height, int pix_fmt);
-    int v4l2_capture_s_format(int fd, int w, int h, int format);
+    int v4l2_capture_try_format(int fd, int *w, int *h);
+    int v4l2_capture_g_framerate(int fd, float * framerate, int width, int height);
+    int v4l2_capture_s_format(int fd, int w, int h);
     int set_attribute (int fd, int attribute_num,
                                const int value, const char *name);
     int set_zoom (int fd, int zoom);
@@ -285,6 +285,8 @@ private:
     int mSessionId; // uniquely identify each session
 
     int mCameraId;
+
+    int mFormat;
 
 }; // class CameraDriver
 

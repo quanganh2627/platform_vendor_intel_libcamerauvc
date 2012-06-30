@@ -50,13 +50,11 @@ ControlThread::ControlThread(int cameraId) :
     ,mFaceDetectionActive(false)
     ,mThumbSupported(false)
     ,mLastRecordingBuffIndex(0)
+    ,mCameraFormat(mDriver->getFormat())
 {
     LOG1("@%s: cameraId = %d", __FUNCTION__, cameraId);
 
-    // get default params from CameraDriver and JPEG encoder
-    mDriver->getDefaultParameters(&mParameters);
-    mPictureThread->getDefaultParameters(&mParameters);
-    mPreviewThread->getDefaultParameters(&mParameters);
+    initDefaultParams();
 
     status_t status = mPreviewThread->run();
     if (status != NO_ERROR) {
@@ -105,6 +103,26 @@ ControlThread::~ControlThread()
         }
         m_pFaceDetector = 0;
     }
+}
+
+void ControlThread::initDefaultParams()
+{
+    // get default params from CameraDriver and JPEG encoder
+    mDriver->getDefaultParameters(&mParameters);
+    mPictureThread->getDefaultParameters(&mParameters);
+
+    // preview format
+    mParameters.setPreviewFormat(CameraParameters::PIXEL_FORMAT_YUV420SP);
+
+    // supported preview formats
+    char previewFormats[100] = {0};
+    snprintf(previewFormats, sizeof(previewFormats), "%s",
+            CameraParameters::PIXEL_FORMAT_YUV420SP);
+    mParameters.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS, previewFormats);
+
+    // video format
+    mParameters.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT,
+            CameraParameters::PIXEL_FORMAT_YUV420SP);
 }
 
 status_t ControlThread::setPreviewWindow(struct preview_stream_ops *window)
@@ -549,9 +567,12 @@ status_t ControlThread::startPreviewCore(bool videoMode)
 {
     LOG1("@%s", __FUNCTION__);
     status_t status = NO_ERROR;
-    int width;
-    int height;
-    int format;
+    int previewWidth;
+    int previewHeight;
+    int previewFormat;
+    int videoWidth;
+    int videoHeight;
+    int videoFormat;
     State state;
     CameraDriver::Mode mode;
 
@@ -570,30 +591,32 @@ status_t ControlThread::startPreviewCore(bool videoMode)
         mode = CameraDriver::MODE_PREVIEW;
     }
 
-    // set preview frame config
-    format = V4L2Format(mParameters.getPreviewFormat());
-    if (format == -1) {
-        LOGE("Bad preview format. Cannot start the preview!");
+    previewFormat = V4L2Format(mParameters.getPreviewFormat());
+    videoFormat = V4L2Format(mParameters.get(CameraParameters::KEY_VIDEO_FRAME_FORMAT));
+
+    if (previewFormat != videoFormat) {
+        LOGE("preview and video format must be the same");
         return BAD_VALUE;
     }
-    LOG1("Using preview format: %s", v4l2Fmt2Str(format));
-    mParameters.getPreviewSize(&width, &height);
-    mDriver->setPreviewFrameFormat(width, height);
-    mPreviewThread->setPreviewConfig(width, height, format);
+
+    mParameters.getPreviewSize(&previewWidth, &previewHeight);
+    mDriver->setPreviewFrameSize(previewWidth, previewHeight);
+    mPreviewThread->setPreviewConfig(previewWidth, previewHeight, mCameraFormat, previewFormat);
 
     // set video frame config
     if (videoMode) {
-        mParameters.getVideoSize(&width, &height);
-        mDriver->setVideoFrameFormat(width, height);
-        mVideoThread->setConfig(V4L2_PIX_FMT_YUYV, V4L2_PIX_FMT_NV21, width, height);
+        mParameters.getVideoSize(&videoWidth, &videoHeight);
+        mDriver->setVideoFrameSize(videoWidth, videoHeight);
+        mVideoThread->setConfig(mCameraFormat, videoFormat, videoWidth, videoHeight);
     }
 
     mNumBuffers = mDriver->getNumBuffers();
     mRecordingBuffersConverted = new CameraBuffer[mNumBuffers];
-    int bytes = frameSize(V4L2_PIX_FMT_NV21, width, height);
+    int bytes = frameSize(videoFormat, videoWidth, videoHeight);
     for (int i = 0; i < mNumBuffers; i++) {
         mCallbacks->allocateMemory(&mRecordingBuffersConverted[i], bytes);
         mRecordingBuffersConverted[i].id = i;
+        mRecordingBuffersConverted[i].format = videoFormat;
     }
     mCoupledBuffers = new CoupledBuffer[mNumBuffers];
     memset(mCoupledBuffers, 0, mNumBuffers * sizeof(CoupledBuffer));
@@ -781,7 +804,6 @@ status_t ControlThread::handleMessageTakePicture()
     State origState = mState;
     int width;
     int height;
-    int format;
 
     if (origState != STATE_PREVIEW_STILL && origState != STATE_RECORDING) {
         LOGE("we only support snapshot in still preview and recording");
@@ -801,7 +823,6 @@ status_t ControlThread::handleMessageTakePicture()
 
     // Get the current params
     mParameters.getPictureSize(&width, &height);
-    format = mDriver->getSnapshotPixelFormat();
     if (origState == STATE_RECORDING) {
         // override picture size to video size if recording
         int vidWidth, vidHeight;
@@ -830,13 +851,13 @@ status_t ControlThread::handleMessageTakePicture()
         gatherExifInfo(&copyParams, false, &config.exif);
     }
 
-    config.picture.format = format;
+    config.picture.format = mCameraFormat;
     config.picture.quality = mParameters.getInt(CameraParameters::KEY_JPEG_QUALITY);
     config.picture.width = width;
     config.picture.height = height;
 
     if (mThumbSupported) {
-        config.thumbnail.format = format;
+        config.thumbnail.format = mCameraFormat;
         config.thumbnail.quality = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY);
         config.thumbnail.width = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH);
         config.thumbnail.height = mParameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT);
@@ -846,7 +867,7 @@ status_t ControlThread::handleMessageTakePicture()
 
     if (origState == STATE_PREVIEW_STILL) {
         // Configure and start the driver
-        mDriver->setSnapshotFrameFormat(width, height, format);
+        mDriver->setSnapshotFrameSize(width, height);
 
         if ((status = mDriver->start(CameraDriver::MODE_CAPTURE)) != NO_ERROR) {
             LOGE("Error starting the driver in CAPTURE mode!");

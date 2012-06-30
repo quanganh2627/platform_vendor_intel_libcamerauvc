@@ -81,6 +81,7 @@ CameraDriver::CameraDriver(int cameraId) :
     ,mCallbacks(Callbacks::getInstance())
     ,mSessionId(0)
     ,mCameraId(cameraId)
+    ,mFormat(V4L2_PIX_FMT_YUYV)
 {
     LOG1("@%s", __FUNCTION__);
 
@@ -125,10 +126,10 @@ CameraDriver::CameraDriver(int cameraId) :
     }
 
     // Initialize the frame sizes (TODO: decide on appropriate sizes)
-    setPreviewFrameFormat(RESOLUTION_VGA_WIDTH, RESOLUTION_VGA_HEIGHT, V4L2_PIX_FMT_YUYV);
-    setPostviewFrameFormat(RESOLUTION_VGA_WIDTH, RESOLUTION_VGA_HEIGHT, V4L2_PIX_FMT_YUYV);
-    setSnapshotFrameFormat(RESOLUTION_VGA_WIDTH, RESOLUTION_VGA_HEIGHT, V4L2_PIX_FMT_YUYV);
-    setVideoFrameFormat(RESOLUTION_VGA_WIDTH, RESOLUTION_VGA_HEIGHT, V4L2_PIX_FMT_YUYV);
+    setPreviewFrameSize(RESOLUTION_VGA_WIDTH, RESOLUTION_VGA_HEIGHT);
+    setPostviewFrameSize(RESOLUTION_VGA_WIDTH, RESOLUTION_VGA_HEIGHT);
+    setSnapshotFrameSize(RESOLUTION_VGA_WIDTH, RESOLUTION_VGA_HEIGHT);
+    setVideoFrameSize(RESOLUTION_VGA_WIDTH, RESOLUTION_VGA_HEIGHT);
 
     closeDevice();
 }
@@ -175,8 +176,6 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
     params->setVideoSize(mConfig.recording.width, mConfig.recording.height);
     params->set(CameraParameters::KEY_PREFERRED_PREVIEW_SIZE_FOR_VIDEO, "640x480");
     params->set(CameraParameters::KEY_SUPPORTED_VIDEO_SIZES, ""); // empty string indicates we only support a single stream
-    params->set(CameraParameters::KEY_VIDEO_FRAME_FORMAT,
-                CameraParameters::PIXEL_FORMAT_YUV420SP);
 
     params->set(CameraParameters::KEY_VIDEO_SNAPSHOT_SUPPORTED, CameraParameters::FALSE);
 
@@ -341,7 +340,6 @@ status_t CameraDriver::startPreview()
             MODE_PREVIEW,
             mConfig.preview.padding,
             mConfig.preview.height,
-            mConfig.preview.format,
             NUM_DEFAULT_BUFFERS);
     if (ret < 0) {
         LOGE("Configure device failed!");
@@ -396,7 +394,6 @@ status_t CameraDriver::startRecording()
             MODE_VIDEO,
             mConfig.preview.padding,
             mConfig.preview.height,
-            mConfig.preview.format,
             NUM_DEFAULT_BUFFERS);
     if (ret < 0) {
         LOGE("Configure device failed!");
@@ -448,7 +445,6 @@ status_t CameraDriver::startCapture()
             MODE_CAPTURE,
             mConfig.preview.padding,
             mConfig.preview.height,
-            mConfig.preview.format,
             NUM_DEFAULT_BUFFERS);
     if (ret < 0) {
         LOGE("Configure device failed!");
@@ -486,12 +482,12 @@ status_t CameraDriver::stopCapture()
     return NO_ERROR;
 }
 
-int CameraDriver::configureDevice(Mode deviceMode, int w, int h, int format, int numBuffers)
+int CameraDriver::configureDevice(Mode deviceMode, int w, int h, int numBuffers)
 {
     LOG1("@%s", __FUNCTION__);
     int ret = 0;
-    LOG1("width:%d, height:%d, deviceMode:%d format:%d",
-            w, h, deviceMode, format);
+    LOG1("width:%d, height:%d, deviceMode:%d",
+            w, h, deviceMode);
 
     if ((w <= 0) || (h <= 0)) {
         LOGE("Wrong Width %d or Height %d", w, h);
@@ -506,11 +502,11 @@ int CameraDriver::configureDevice(Mode deviceMode, int w, int h, int format, int
         return ret;
 
     //Set the format
-    ret = v4l2_capture_s_format(fd, w, h, format);
+    ret = v4l2_capture_s_format(fd, w, h);
     if (ret < 0)
         return ret;
 
-    ret = v4l2_capture_g_framerate(fd, &mConfig.fps, w, h, format);
+    ret = v4l2_capture_g_framerate(fd, &mConfig.fps, w, h);
     if (ret < 0) {
         /*Error handler: if driver does not support FPS achieving,
           just give the default value.*/
@@ -650,6 +646,8 @@ status_t CameraDriver::allocateBuffer(int fd, int index)
     camBuf->id = index;
     mCallbacks->allocateMemory(camBuf, vbuf->length);
     vbuf->m.userptr = (unsigned int) camBuf->buff->data;
+
+    camBuf->format = mFormat;
 
     LOG1("alloc mem addr=%p, index=%d size=%d", camBuf->buff->data, index, vbuf->length);
 
@@ -811,7 +809,7 @@ int CameraDriver::detectDeviceResolutions()
     while (true) {
         memset(&frame_size, 0, sizeof(frame_size));
         frame_size.index = i++;
-        frame_size.pixel_format = mConfig.snapshot.format;
+        frame_size.pixel_format = mFormat;
         /* TODO: Currently VIDIOC_ENUM_FRAMESIZES is returning with Invalid argument
          * Need to know why the driver is not supporting this V4L2 API call
          */
@@ -824,8 +822,7 @@ int CameraDriver::detectDeviceResolutions()
                 mCameraSensor[mCameraId]->fd,
                 &fps,
                 frame_size.discrete.width,
-                frame_size.discrete.height,
-                frame_size.pixel_format);
+                frame_size.discrete.height);
         LOG1("Supported frame size: %ux%u@%dfps",
                 frame_size.discrete.width,
                 frame_size.discrete.height,
@@ -835,53 +832,51 @@ int CameraDriver::detectDeviceResolutions()
     // Get the maximum format supported
     mConfig.snapshot.maxWidth = 0xffff;
     mConfig.snapshot.maxHeight = 0xffff;
-    ret = v4l2_capture_try_format(mCameraSensor[mCameraId]->fd, &mConfig.snapshot.maxWidth, &mConfig.snapshot.maxHeight, &mConfig.snapshot.format);
+    ret = v4l2_capture_try_format(mCameraSensor[mCameraId]->fd,
+            &mConfig.snapshot.maxWidth,
+            &mConfig.snapshot.maxHeight);
     if (ret < 0)
         return ret;
     return 0;
 }
 
-status_t CameraDriver::setPreviewFrameFormat(int width, int height, int format)
+status_t CameraDriver::setPreviewFrameSize(int width, int height)
 {
     LOG1("@%s", __FUNCTION__);
     status_t status = NO_ERROR;
 
-    if(format == 0)
-         format = mConfig.preview.format;
     if (width > mConfig.preview.maxWidth || width <= 0)
         width = mConfig.preview.maxWidth;
     if (height > mConfig.preview.maxHeight || height <= 0)
         height = mConfig.preview.maxHeight;
     mConfig.preview.width = width;
     mConfig.preview.height = height;
-    mConfig.preview.format = format;
-    mConfig.preview.padding = paddingWidth(format, width, height);
-    mConfig.preview.size = frameSize(format, mConfig.preview.padding, height);
-    LOG1("width(%d), height(%d), pad_width(%d), size(%d), format(%x)",
-        width, height, mConfig.preview.padding, mConfig.preview.size, format);
+    mConfig.preview.padding = paddingWidth(mFormat, width, height);
+    mConfig.preview.size = frameSize(mFormat, mConfig.preview.padding, height);
+    LOG1("width(%d), height(%d), pad_width(%d), size(%d)",
+        width, height, mConfig.preview.padding, mConfig.preview.size);
     return status;
 }
 
-status_t CameraDriver::setPostviewFrameFormat(int width, int height, int format)
+status_t CameraDriver::setPostviewFrameSize(int width, int height)
 {
     LOG1("@%s", __FUNCTION__);
     status_t status = NO_ERROR;
 
-    LOG1("width(%d), height(%d), format(%x)",
-         width, height, format);
+    LOG1("width(%d), height(%d)",
+         width, height);
     mConfig.postview.width = width;
     mConfig.postview.height = height;
-    mConfig.postview.format = format;
-    mConfig.postview.padding = paddingWidth(format, width, height);
-    mConfig.postview.size = frameSize(format, width, height);
+    mConfig.postview.padding = paddingWidth(mFormat, width, height);
+    mConfig.postview.size = frameSize(mFormat, width, height);
     if (mConfig.postview.size == 0)
         mConfig.postview.size = mConfig.postview.width * mConfig.postview.height * BPP;
-    LOG1("width(%d), height(%d), pad_width(%d), size(%d), format(%x)",
-            width, height, mConfig.postview.padding, mConfig.postview.size, format);
+    LOG1("width(%d), height(%d), pad_width(%d), size(%d)",
+            width, height, mConfig.postview.padding, mConfig.postview.size);
     return status;
 }
 
-status_t CameraDriver::setSnapshotFrameFormat(int width, int height, int format)
+status_t CameraDriver::setSnapshotFrameSize(int width, int height)
 {
     LOG1("@%s", __FUNCTION__);
     status_t status = NO_ERROR;
@@ -892,13 +887,12 @@ status_t CameraDriver::setSnapshotFrameFormat(int width, int height, int format)
         height = mConfig.snapshot.maxHeight;
     mConfig.snapshot.width  = width;
     mConfig.snapshot.height = height;
-    mConfig.snapshot.format = format;
-    mConfig.snapshot.padding = paddingWidth(format, width, height);
-    mConfig.snapshot.size = frameSize(format, width, height);;
+    mConfig.snapshot.padding = paddingWidth(mFormat, width, height);
+    mConfig.snapshot.size = frameSize(mFormat, width, height);;
     if (mConfig.snapshot.size == 0)
         mConfig.snapshot.size = mConfig.snapshot.width * mConfig.snapshot.height * BPP;
-    LOG1("width(%d), height(%d), pad_width(%d), size(%d), format(%x)",
-        width, height, mConfig.snapshot.padding, mConfig.snapshot.size, format);
+    LOG1("width(%d), height(%d), pad_width(%d), size(%d)",
+        width, height, mConfig.snapshot.padding, mConfig.snapshot.size);
     return status;
 }
 
@@ -910,17 +904,14 @@ void CameraDriver::getVideoSize(int *width, int *height)
     }
 }
 
-status_t CameraDriver::setVideoFrameFormat(int width, int height, int format)
+status_t CameraDriver::setVideoFrameSize(int width, int height)
 {
     LOG1("@%s", __FUNCTION__);
     int ret = 0;
     status_t status = NO_ERROR;
 
-    if(format == 0)
-         format = mConfig.recording.format;
     if (mConfig.recording.width == width &&
-        mConfig.recording.height == height &&
-        mConfig.recording.format == format) {
+        mConfig.recording.height == height) {
         // Do nothing
         return status;
     }
@@ -940,13 +931,12 @@ status_t CameraDriver::setVideoFrameFormat(int width, int height, int format)
     }
     mConfig.recording.width = width;
     mConfig.recording.height = height;
-    mConfig.recording.format = format;
-    mConfig.recording.padding = paddingWidth(format, width, height);
-    mConfig.recording.size = frameSize(format, width, height);
+    mConfig.recording.padding = paddingWidth(mFormat, width, height);
+    mConfig.recording.size = frameSize(mFormat, width, height);
     if (mConfig.recording.size == 0)
         mConfig.recording.size = mConfig.recording.width * mConfig.recording.height * BPP;
-    LOG1("width(%d), height(%d), pad_width(%d), format(%x)",
-            width, height, mConfig.recording.padding, format);
+    LOG1("width(%d), height(%d), pad_width(%d)",
+            width, height, mConfig.recording.padding);
 
     return status;
 }
@@ -1100,8 +1090,7 @@ int CameraDriver::xioctl(int fd, int request, void *arg)
     return ret;
 }
 
-int CameraDriver::v4l2_capture_g_framerate(int fd, float *framerate, int width,
-                                         int height, int pix_fmt)
+int CameraDriver::v4l2_capture_g_framerate(int fd, float *framerate, int width, int height)
 {
     LOG1("@%s", __FUNCTION__);
     int ret;
@@ -1112,7 +1101,7 @@ int CameraDriver::v4l2_capture_g_framerate(int fd, float *framerate, int width,
 
     assert(fd > 0);
     CLEAR(frm_interval);
-    frm_interval.pixel_format = pix_fmt;
+    frm_interval.pixel_format = mFormat;
     frm_interval.width = width;
     frm_interval.height = height;
     *framerate = -1.0;
@@ -1130,7 +1119,7 @@ int CameraDriver::v4l2_capture_g_framerate(int fd, float *framerate, int width,
     return 0;
 }
 
-int CameraDriver::v4l2_capture_s_format(int fd, int w, int h, int fourcc)
+int CameraDriver::v4l2_capture_s_format(int fd, int w, int h)
 {
     LOG1("@%s", __FUNCTION__);
     int ret;
@@ -1147,7 +1136,7 @@ int CameraDriver::v4l2_capture_s_format(int fd, int w, int h, int fourcc)
 
     v4l2_fmt.fmt.pix.width = w;
     v4l2_fmt.fmt.pix.height = h;
-    v4l2_fmt.fmt.pix.pixelformat = fourcc;
+    v4l2_fmt.fmt.pix.pixelformat = mFormat;
     v4l2_fmt.fmt.pix.field = V4L2_FIELD_INTERLACED;
     LOG1("VIDIOC_S_FMT: width: %d, height: %d, format: %d, field: %d",
                 v4l2_fmt.fmt.pix.width,
@@ -1257,8 +1246,7 @@ int CameraDriver::set_capture_mode(Mode deviceMode)
     return 0;
 }
 
-int CameraDriver::v4l2_capture_try_format(int fd, int *w, int *h,
-                                         int *fourcc)
+int CameraDriver::v4l2_capture_try_format(int fd, int *w, int *h)
 {
     LOG1("@%s", __FUNCTION__);
     int ret;
@@ -1269,7 +1257,7 @@ int CameraDriver::v4l2_capture_try_format(int fd, int *w, int *h,
 
     v4l2_fmt.fmt.pix.width = *w;
     v4l2_fmt.fmt.pix.height = *h;
-    v4l2_fmt.fmt.pix.pixelformat = *fourcc;
+    v4l2_fmt.fmt.pix.pixelformat = mFormat;
     v4l2_fmt.fmt.pix.field = V4L2_FIELD_INTERLACED;
 
     ret = ioctl(fd, VIDIOC_TRY_FMT, &v4l2_fmt);
@@ -1280,7 +1268,6 @@ int CameraDriver::v4l2_capture_try_format(int fd, int *w, int *h,
 
     *w = v4l2_fmt.fmt.pix.width;
     *h = v4l2_fmt.fmt.pix.height;
-    *fourcc = v4l2_fmt.fmt.pix.pixelformat;
 
     return 0;
 }

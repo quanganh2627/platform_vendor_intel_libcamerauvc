@@ -51,6 +51,7 @@ struct CameraBuffer {
                             // No other classes should touch this
     BufferType type;
     IBufferOwner* owner;    //owner who is responsible to enqueue back to CameraDriver
+    int format;
 };
 
 struct CameraWindow {

@@ -49,12 +49,10 @@ public:
 
 // public methods
 public:
-    void getDefaultParameters(CameraParameters *params);
 
     status_t preview(CameraBuffer *buff);
     status_t setPreviewWindow(struct preview_stream_ops *window);
-    status_t setPreviewConfig(int preview_width, int preview_height,
-                              int preview_format);
+    status_t setPreviewConfig(int preview_width, int preview_height, int input_format, int output_format);
     status_t flushBuffers();
 
     // TODO: need methods to configure preview thread
@@ -91,7 +89,8 @@ private:
     struct MessageSetPreviewConfig {
         int width;
         int height;
-        int format;
+        int inputFormat;
+        int outputFormat;
     };
 
     // union of all message data
@@ -147,7 +146,8 @@ private:
 
     int mPreviewWidth;
     int mPreviewHeight;
-    int mPreviewFormat;
+    int mInputFormat;
+    int mOutputFormat;
 
     CameraBuffer mPreviewBuf;
 
