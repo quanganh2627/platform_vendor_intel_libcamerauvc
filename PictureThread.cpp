@@ -27,11 +27,10 @@ static const int MAX_EXIF_SIZE = 0xFFFF;
 static const unsigned char JPEG_MARKER_SOI[2] = {0xFF, 0xD8}; // JPEG StartOfImage marker
 static const unsigned char JPEG_MARKER_EOI[2] = {0xFF, 0xD9}; // JPEG EndOfImage marker
 
-PictureThread::PictureThread(ICallbackPicture *pictureDone) :
+PictureThread::PictureThread() :
     Thread(true) // callbacks may call into java
     ,mMessageQueue("PictureThread", MESSAGE_ID_MAX)
     ,mThreadRunning(false)
-    ,mPictureDoneCallback(pictureDone)
     ,mCallbacks(Callbacks::getInstance())
 {
     LOG1("@%s", __FUNCTION__);
@@ -257,7 +256,11 @@ status_t PictureThread::handleMessageEncode(MessageEncode *msg)
     }
 
     // When the encoding is done, send back the buffers to camera
-    mPictureDoneCallback->pictureDone(&msg->snaphotBuf, &msg->postviewBuf);
+
+    IBufferOwner *owner = msg->snaphotBuf.owner;
+    if (owner) {
+        owner->returnBuffer(&msg->snaphotBuf, postviewBuf);
+    }
 
     return status;
 }

@@ -29,19 +29,11 @@ namespace android {
 
 class Callbacks;
 
-// callback for when Picture thread is done with yuv data
-class ICallbackPicture {
-public:
-    ICallbackPicture() {}
-    virtual ~ICallbackPicture() {}
-    virtual void pictureDone(CameraBuffer *snapshotBuf, CameraBuffer *postviewBuf) = 0;
-};
-
 class PictureThread : public Thread {
 
 // constructor destructor
 public:
-    PictureThread(ICallbackPicture *pictureDone);
+    PictureThread();
     virtual ~PictureThread();
 
 // Thread overrides
@@ -131,7 +123,6 @@ private:
     JpegEncoder encoder; // for EXIF
     MessageQueue<Message, MessageId> mMessageQueue;
     bool mThreadRunning;
-    ICallbackPicture *mPictureDoneCallback;
     Callbacks *mCallbacks;
     JpegCompressor compressor;
     CameraBuffer mExifBuf;

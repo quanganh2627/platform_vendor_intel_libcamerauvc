@@ -28,19 +28,11 @@ namespace android {
 class DebugFrameRate;
 class Callbacks;
 
-// callback for when Preview thread is done with yuv data
-class ICallbackPreview {
-public:
-    ICallbackPreview() {}
-    virtual ~ICallbackPreview() {}
-    virtual void previewDone(CameraBuffer *memory) = 0;
-};
-
 class PreviewThread : public Thread {
 
 // constructor destructor
 public:
-    PreviewThread(ICallbackPreview *previewDone);
+    PreviewThread();
     virtual ~PreviewThread();
 
 // Thread overrides
@@ -136,7 +128,6 @@ private:
     MessageQueue<Message, MessageId> mMessageQueue;
     bool mThreadRunning;
     sp<DebugFrameRate> mDebugFPS;
-    ICallbackPreview *mPreviewDoneCallback;
     Callbacks *mCallbacks;
 
     preview_stream_ops_t* mPreviewWindow;

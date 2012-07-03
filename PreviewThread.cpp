@@ -27,12 +27,11 @@
 
 namespace android {
 
-PreviewThread::PreviewThread(ICallbackPreview *previewDone) :
+PreviewThread::PreviewThread() :
     Thread(true) // callbacks may call into java
     ,mMessageQueue("PreviewThread", (int) MESSAGE_ID_MAX)
     ,mThreadRunning(false)
     ,mDebugFPS(new DebugFrameRate())
-    ,mPreviewDoneCallback(previewDone)
     ,mCallbacks(Callbacks::getInstance())
     ,mPreviewWindow(NULL)
     ,mPreviewWidth(640)
@@ -158,7 +157,10 @@ status_t PreviewThread::handleMessagePreview(MessagePreview *msg)
     mDebugFPS->update(); // update fps counter
 
 exit:
-    mPreviewDoneCallback->previewDone(&msg->inputBuff);
+    IBufferOwner *owner = msg->inputBuff.owner;
+    if (owner) {
+        owner->returnBuffer(&msg->inputBuff);
+    }
 
     return status;
 }

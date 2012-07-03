@@ -28,12 +28,15 @@
 #define BPP 2 // bytes per pixel
 #define MAX_PARAM_VALUE_LENGTH 32
 #define MAX_BURST_BUFFERS 32
+
 namespace android {
+
 struct CameraBuffer;
+
 class IBufferOwner
 {
 public:
-    virtual void returnBuffer(CameraBuffer* buff) =0;
+    virtual void returnBuffer(CameraBuffer* buff1, CameraBuffer* buff2 = NULL) = 0;
     virtual ~IBufferOwner(){};
 };
 

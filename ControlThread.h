@@ -40,9 +40,7 @@ class IFaceDetector;
 //
 class ControlThread :
     public Thread,
-    public ICallbackPreview,
-    public ICallbackPicture,
-    public IBufferOwner{
+    public IBufferOwner {
 
 // constructor destructor
 public:
@@ -101,11 +99,8 @@ public:
 
 // callback methods
 private:
-    virtual void previewDone(CameraBuffer *buff);
-    virtual void pictureDone(CameraBuffer *snapshotBuf, CameraBuffer *postviewBuf);
-    virtual void redEyeRemovalDone(CameraBuffer *snapshotBuf, CameraBuffer *postviewBuf);
     virtual void autoFocusDone();
-    virtual void returnBuffer(CameraBuffer *buff);
+    virtual void returnBuffer(CameraBuffer *buff1, CameraBuffer *buff2 = NULL);
 
 // private types
 private:
@@ -123,15 +118,9 @@ private:
         MESSAGE_ID_AUTO_FOCUS,
         MESSAGE_ID_CANCEL_AUTO_FOCUS,
         MESSAGE_ID_RELEASE_RECORDING_FRAME,
-        MESSAGE_ID_RELEASE_PREVIEW_FRAME,//This is only a callback from other
-                                         // HAL threads to signal preview buffer
-                                         // is not used and is free to queue back
-                                         // CameraDriver.
-        MESSAGE_ID_PREVIEW_DONE,
-        MESSAGE_ID_PICTURE_DONE,
+        MESSAGE_ID_RETURN_BUFFER,
         MESSAGE_ID_SET_PARAMETERS,
         MESSAGE_ID_GET_PARAMETERS,
-        MESSAGE_ID_REDEYE_REMOVAL_DONE,
         MESSAGE_ID_AUTO_FOCUS_DONE,
         MESSAGE_ID_COMMAND,
         MESSAGE_ID_FACES_DETECTED,
@@ -147,16 +136,11 @@ private:
     struct MessageReleaseRecordingFrame {
         void *buff;
     };
-    struct MessageReleasePreviewFrame {
-        CameraBuffer buff;
-    };
-    struct MessagePreviewDone {
-        CameraBuffer buff;
-    };
 
-    struct MessagePicture {
-        CameraBuffer snapshotBuf;
-        CameraBuffer postviewBuf;
+    struct MessageReturnBuffer {
+        int numBuffers;
+        CameraBuffer buff1;
+        CameraBuffer buff2;
     };
 
     struct MessageSetParameters {
@@ -184,14 +168,8 @@ private:
         // MESSAGE_ID_RELEASE_RECORDING_FRAME
         MessageReleaseRecordingFrame releaseRecordingFrame;
 
-        // MESSAGE_ID_RELEASE_PREVIEW_FRAME
-        MessageReleasePreviewFrame releasePreviewFrame;
-
-        // MESSAGE_ID_PREVIEW_DONE
-        MessagePreviewDone previewDone;
-
-        // MESSAGE_ID_PICTURE_DONE
-        MessagePicture pictureDone;
+        // MESSAGE_ID_RETURN_BUFFER
+        MessageReturnBuffer returnBuffer;
 
         // MESSAGE_ID_SET_PARAMETERS
         MessageSetParameters setParameters;
@@ -199,8 +177,6 @@ private:
         // MESSAGE_ID_GET_PARAMETERS
         MessageGetParameters getParameters;
 
-        // MESSAGE_ID_REDEYE_REMOVAL_DONE
-        MessagePicture redEyeRemovalDone;
         // MESSAGE_ID_COMMAND
         MessageCommand command;
         //MESSAGE_ID_FACES_DETECTED
@@ -241,6 +217,10 @@ private:
     status_t startPreviewCore(bool videoMode);
     status_t stopPreviewCore();
 
+    status_t returnPreviewBuffer(CameraBuffer *buff);
+    status_t returnVideoBuffer(CameraBuffer *buff);
+    status_t returnSnapshotBuffer(CameraBuffer *buff);
+
     // thread message execution functions
     status_t handleMessageExit();
     status_t handleMessageStartPreview();
@@ -252,18 +232,14 @@ private:
     status_t handleMessageAutoFocus();
     status_t handleMessageCancelAutoFocus();
     status_t handleMessageReleaseRecordingFrame(MessageReleaseRecordingFrame *msg);
-    status_t handleMessageReleasePreviewFrame(MessageReleasePreviewFrame *msg);
-    status_t handleMessagePreviewDone(MessagePreviewDone *msg);
-    status_t handleMessagePictureDone(MessagePicture *msg);
+    status_t handleMessageReturnBuffer(MessageReturnBuffer *msg);
     status_t handleMessageSetParameters(MessageSetParameters *msg);
     status_t handleMessageGetParameters(MessageGetParameters *msg);
-    status_t handleMessageRedEyeRemovalDone(MessagePicture *msg);
     status_t handleMessageAutoFocusDone();
     status_t handleMessageCommand(MessageCommand* msg);
     status_t startFaceDetection();
     status_t stopFaceDetection(bool wait=false);
     status_t handleMessageFacesDetected(MessageFacesDetected* msg);
-    void releasePreviewFrame(CameraBuffer* buff);
 
     // main message function
     status_t waitForAndExecuteMessage();

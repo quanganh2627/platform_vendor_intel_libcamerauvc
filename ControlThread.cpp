@@ -37,8 +37,8 @@ namespace android {
 ControlThread::ControlThread(int cameraId) :
     Thread(true) // callbacks may call into java
     ,mDriver(new CameraDriver(cameraId))
-    ,mPreviewThread(new PreviewThread((ICallbackPreview *) this))
-    ,mPictureThread(new PictureThread((ICallbackPicture *) this))
+    ,mPreviewThread(new PreviewThread())
+    ,mPictureThread(new PictureThread())
     ,mVideoThread(new VideoThread())
     ,mPipeThread(new PipeThread())
     ,mMessageQueue("ControlThread", (int) MESSAGE_ID_MAX)
@@ -489,43 +489,76 @@ status_t ControlThread::releaseRecordingFrame(void *buff)
     return mMessageQueue.send(&msg);
 }
 
-void ControlThread::previewDone(CameraBuffer *buff)
+void ControlThread::returnBuffer(CameraBuffer *buff1, CameraBuffer *buff2)
 {
-    LOG2("@%s: buff = %p, id = %d", __FUNCTION__, buff->buff->data, buff->id);
     Message msg;
-    msg.id = MESSAGE_ID_PREVIEW_DONE;
-    msg.data.previewDone.buff = *buff;
-    mMessageQueue.send(&msg);
-}
-void ControlThread::returnBuffer(CameraBuffer *buff)
-{
-    LOG2("@%s: buff = %p, id = %d", __FUNCTION__, buff->buff->data, buff->id);
-    if (buff->type == BUFFER_TYPE_PREVIEW) {
-        buff->owner = 0;
-        releasePreviewFrame (buff);
+    msg.id = MESSAGE_ID_RETURN_BUFFER;
+    msg.data.returnBuffer.numBuffers = 1;
+    msg.data.returnBuffer.buff1 = *buff1;
+    if (buff2) {
+        msg.data.returnBuffer.numBuffers = 2;
+        msg.data.returnBuffer.buff2 = *buff2;
     }
-}
-void ControlThread::releasePreviewFrame(CameraBuffer *buff)
-{
-    LOG2("release preview frame buffer data %p, id = %d", buff->buff->data, buff->id);
-    Message msg;
-    msg.id = MESSAGE_ID_RELEASE_PREVIEW_FRAME;
-    msg.data.releasePreviewFrame.buff = *buff;
     mMessageQueue.send(&msg);
 }
 
-void ControlThread::pictureDone(CameraBuffer *snapshotBuf, CameraBuffer *postviewBuf)
+status_t ControlThread::returnPreviewBuffer(CameraBuffer *buff)
 {
-    LOG2("@%s: snapshotBuf = %p, postviewBuf = %p, id = %d",
-            __FUNCTION__,
-            snapshotBuf->buff->data,
-            postviewBuf->buff->data,
-            snapshotBuf->id);
-    Message msg;
-    msg.id = MESSAGE_ID_PICTURE_DONE;
-    msg.data.pictureDone.snapshotBuf = *snapshotBuf;
-    msg.data.pictureDone.postviewBuf = *postviewBuf;
-    mMessageQueue.send(&msg);
+    status_t status = NO_ERROR;
+
+    if (mState == STATE_PREVIEW_STILL) {
+        status = mDriver->putPreviewFrame(buff);
+        if (status != NO_ERROR) {
+            LOGE("Error putting preview frame to driver");
+        }
+    } else if (mState == STATE_PREVIEW_VIDEO || mState == STATE_RECORDING) {
+        if (mCoupledBuffers && buff->id < mNumBuffers) {
+            mCoupledBuffers[buff->id].previewBuffReturned = true;
+            status = queueCoupledBuffers(buff->id);
+            if (status != NO_ERROR) {
+                LOGE("Error queing coupled buffers for preview");
+            }
+        }
+    }
+
+    return status;
+}
+
+status_t ControlThread::returnVideoBuffer(CameraBuffer *buff)
+{
+    status_t status = NO_ERROR;
+    if (mState == STATE_RECORDING) {
+        if (mCoupledBuffers && buff->id < mNumBuffers) {
+            mCoupledBuffers[buff->id].recordingBuffReturned = true;
+            status = queueCoupledBuffers(buff->id);
+            if (status != NO_ERROR) {
+                LOGE("Error queing coupled buffers for video");
+            }
+        }
+    }
+    return status;
+}
+
+status_t ControlThread::returnSnapshotBuffer(CameraBuffer *buff)
+{
+    status_t status = NO_ERROR;
+
+    if (mState == STATE_RECORDING) {
+        if (mCoupledBuffers && buff->id < mNumBuffers) {
+            mCoupledBuffers[buff->id].videoSnapshotBuffReturned = true;
+            status = queueCoupledBuffers(buff->id);
+            mCoupledBuffers[buff->id].videoSnapshotBuffReturned = false;
+            mCoupledBuffers[buff->id].videoSnapshotBuff = false;
+        }
+    } else if (mState == STATE_CAPTURE) {
+        status = mDriver->putSnapshot(buff);
+        if (status != NO_ERROR) {
+            LOGE("Error in putting snapshot!");
+            return status;
+        }
+    }
+
+    return status;
 }
 
 void ControlThread::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2)
@@ -535,23 +568,6 @@ void ControlThread::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2)
     msg.data.command.cmd_id = cmd;
     msg.data.command.arg1 = arg1;
     msg.data.command.arg2 = arg2;
-    mMessageQueue.send(&msg);
-}
-
-void ControlThread::redEyeRemovalDone(CameraBuffer *snapshotBuf, CameraBuffer *postviewBuf)
-{
-    LOG1("@%s: snapshotBuf = %p, postviewBuf = %p, id = %d",
-            __FUNCTION__,
-            snapshotBuf->buff->data,
-            postviewBuf->buff->data,
-            snapshotBuf->id);
-    Message msg;
-    msg.id = MESSAGE_ID_REDEYE_REMOVAL_DONE;
-    msg.data.redEyeRemovalDone.snapshotBuf = *snapshotBuf;
-    if (postviewBuf)
-        msg.data.redEyeRemovalDone.postviewBuf = *postviewBuf;
-    else
-        msg.data.redEyeRemovalDone.postviewBuf.buff->data = NULL; // optional
     mMessageQueue.send(&msg);
 }
 
@@ -892,6 +908,8 @@ status_t ControlThread::handleMessageTakePicture()
             LOGE("Error in grabbing snapshot!");
             return status;
         }
+        snapshotBuffer.type = BUFFER_TYPE_SNAPSHOT;
+        snapshotBuffer.owner = this;
 
         if (mThumbSupported) {
             if ((status = mDriver->getThumbnail(&postviewBuffer)) != NO_ERROR) {
@@ -899,6 +917,8 @@ status_t ControlThread::handleMessageTakePicture()
                 return status;
             }
         }
+        postviewBuffer.type == BUFFER_TYPE_THUMBNAIL;
+        postviewBuffer.owner = this;
 
         mCallbacks->shutterSound();
 
@@ -975,70 +995,44 @@ status_t ControlThread::handleMessageReleaseRecordingFrame(MessageReleaseRecordi
     LOG2("@%s", __FUNCTION__);
     status_t status = NO_ERROR;
     if (mState == STATE_RECORDING) {
-        CameraBuffer *recBuff = findRecordingBuffer(msg->buff);
-        if (recBuff == NULL) {
-            // This may happen with buffer sharing. When the omx component is stopped
-            // it disables buffer sharing and deallocates its buffers. Internally we check
-            // to see if sharing was disabled then we restart the driver with new buffers. In
-            // the mean time, the app is returning us shared buffers when we are no longer
-            // using them.
+        CameraBuffer *buff = findRecordingBuffer(msg->buff);
+        if (buff == NULL) {
             LOGE("Could not find recording buffer: %p", msg->buff);
             return DEAD_OBJECT;
         }
-        int curBuff = recBuff->id;
-        LOG2("Recording buffer released from encoder, buff id = %d", curBuff);
-        if (mCoupledBuffers && curBuff < mNumBuffers) {
-            mCoupledBuffers[curBuff].recordingBuffReturned = true;
-            status = queueCoupledBuffers(curBuff);
-        }
+        LOG2("Recording buffer released from encoder, buff id = %d", buff->id);
+        return returnVideoBuffer(buff);
     }
     return status;
 }
 
-status_t ControlThread::handleMessagePreviewDone(MessagePreviewDone *msg)
+status_t ControlThread::handleMessageReturnBuffer(MessageReturnBuffer *msg)
 {
+    if (msg->numBuffers == 2)
+        LOG2("return buffer 2 id = %d", msg->buff2.id);
 
-    LOG2("handle preview frame done buff id = %d", msg->buff.id);
-    if (!mDriver->isBufferValid(&msg->buff))
-        return DEAD_OBJECT;
-    status_t status = NO_ERROR;
-    if (m_pFaceDetector !=0 && mFaceDetectionActive) {
-        LOG2("m_pFace = 0x%p, active=%s", m_pFaceDetector, mFaceDetectionActive?"true":"false");
-        int width, height;
-        mParameters.getPreviewSize(&width, &height);
-        LOG2("sending frame data = %p", msg->buff.buff->data);
-        msg->buff.owner = this;
-        msg->buff.type = BUFFER_TYPE_PREVIEW;
-        if (m_pFaceDetector->sendFrame(&msg->buff, width, height) < 0) {
-            msg->buff.owner = 0;
-            releasePreviewFrame(&msg->buff);
+    CameraBuffer *buff = &msg->buff1;
+    for (int i = 0; i < msg->numBuffers; i++) {
+        LOG2("return buffer id = %d", buff->id);
+        if (i == 1)
+            buff = &msg->buff2;
+
+        if (!mDriver->isBufferValid(buff))
+            return DEAD_OBJECT;
+
+        if (buff->type == BUFFER_TYPE_PREVIEW) {
+            returnPreviewBuffer(buff);
+        } else if (buff->type == BUFFER_TYPE_VIDEO) {
+            returnVideoBuffer(buff);
+        } else if (buff->type == BUFFER_TYPE_SNAPSHOT) {
+            returnSnapshotBuffer(buff);
+        } else {
+            LOGE("invalid buffer type for buff %d", i);
+            return UNKNOWN_ERROR;
         }
-    }else
-    {
-       releasePreviewFrame(&msg->buff);
     }
+
     return NO_ERROR;
-}
-
-status_t ControlThread::handleMessageReleasePreviewFrame(MessageReleasePreviewFrame *msg)
-{
-    LOG2("handle preview frame release buff id = %d", msg->buff.id);
-    status_t status = NO_ERROR;
-    if (mState == STATE_PREVIEW_STILL) {
-        status = mDriver->putPreviewFrame(&msg->buff);
-        if (status == DEAD_OBJECT) {
-            LOG2("Stale preview buffer returned to driver");
-        } else if (status != NO_ERROR) {
-            LOGE("Error putting preview frame to driver");
-        }
-    } else if (mState == STATE_PREVIEW_VIDEO || mState == STATE_RECORDING) {
-        int curBuff = msg->buff.id;
-        if (mCoupledBuffers && curBuff < mNumBuffers) {
-            mCoupledBuffers[curBuff].previewBuffReturned = true;
-            status = queueCoupledBuffers(curBuff);
-        }
-    }
-    return status;
 }
 
 status_t ControlThread::queueCoupledBuffers(int coupledId)
@@ -1059,53 +1053,6 @@ status_t ControlThread::queueCoupledBuffers(int coupledId)
     } else if (status != NO_ERROR) {
         LOGE("Error putting recording frame to driver");
     }
-
-    return status;
-}
-
-status_t ControlThread::handleMessagePictureDone(MessagePicture *msg)
-{
-    LOG1("@%s", __FUNCTION__);
-    status_t status = NO_ERROR;
-
-    if (mState == STATE_RECORDING) {
-        int curBuff = msg->snapshotBuf.id;
-        if (mCoupledBuffers && curBuff < mNumBuffers) {
-            mCoupledBuffers[curBuff].videoSnapshotBuffReturned = true;
-            status = queueCoupledBuffers(curBuff);
-            mCoupledBuffers[curBuff].videoSnapshotBuffReturned = false;
-            mCoupledBuffers[curBuff].videoSnapshotBuff = false;
-        }
-    } else if (mState == STATE_CAPTURE) {
-        // Return the picture frames back to driver
-        status = mDriver->putSnapshot(&msg->snapshotBuf);
-        if (status == DEAD_OBJECT) {
-            LOG1("Stale snapshot buffer returned to driver");
-        } else if (status != NO_ERROR) {
-            LOGE("Error in putting snapshot!");
-            return status;
-        }
-
-        if (mThumbSupported) { // see if thumbnail is present
-            status = mDriver->putThumbnail(&msg->postviewBuf);
-            if (status == DEAD_OBJECT) {
-                LOG1("Stale thumbnail buffer returned to driver");
-            } else if (status != NO_ERROR) {
-                LOGE("Error in putting snapshot!");
-                return status;
-            }
-        }
-    }
-
-    return status;
-}
-
-status_t ControlThread::handleMessageRedEyeRemovalDone(MessagePicture *msg)
-{
-    LOG1("@%s", __FUNCTION__);
-    status_t status = NO_ERROR;
-
-    status = mPictureThread->encode(&msg->snapshotBuf, &msg->postviewBuf);
 
     return status;
 }
@@ -2048,10 +1995,7 @@ status_t ControlThread::waitForAndExecuteMessage()
         case MESSAGE_ID_STOP_RECORDING:
             status = handleMessageStopRecording();
             break;
-        case MESSAGE_ID_RELEASE_PREVIEW_FRAME:
-            status = handleMessageReleasePreviewFrame(
-                &msg.data.releasePreviewFrame);
-            break;
+
         case MESSAGE_ID_TAKE_PICTURE:
             status = handleMessageTakePicture();
             break;
@@ -2072,16 +2016,8 @@ status_t ControlThread::waitForAndExecuteMessage()
             status = handleMessageReleaseRecordingFrame(&msg.data.releaseRecordingFrame);
             break;
 
-        case MESSAGE_ID_PREVIEW_DONE:
-            status = handleMessagePreviewDone(&msg.data.previewDone);
-            break;
-
-        case MESSAGE_ID_PICTURE_DONE:
-            status = handleMessagePictureDone(&msg.data.pictureDone);
-            break;
-
-        case MESSAGE_ID_REDEYE_REMOVAL_DONE:
-            status = handleMessageRedEyeRemovalDone(&msg.data.redEyeRemovalDone);
+        case MESSAGE_ID_RETURN_BUFFER:
+            status = handleMessageReturnBuffer(&msg.data.returnBuffer);
             break;
 
         case MESSAGE_ID_AUTO_FOCUS_DONE:
@@ -2129,6 +2065,8 @@ status_t ControlThread::dequeuePreview()
     status_t status = NO_ERROR;
 
     status = mDriver->getPreviewFrame(&buff);
+    buff.type = BUFFER_TYPE_PREVIEW;
+    buff.owner = this;
     if (status == NO_ERROR) {
         if (mState == STATE_PREVIEW_VIDEO || mState == STATE_RECORDING) {
             mCoupledBuffers[buff.id].previewBuff = buff;
@@ -2152,6 +2090,8 @@ status_t ControlThread::dequeueRecording()
     status_t status = NO_ERROR;
 
     status = mDriver->getRecordingFrame(&buff, &timestamp);
+    buff.type = BUFFER_TYPE_VIDEO;
+    buff.owner = this;
     if (status == NO_ERROR) {
         int width, height;
         mParameters.getVideoSize(&width, &height);

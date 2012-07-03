@@ -108,7 +108,18 @@ status_t PipeThread::handleMessagePreview(MessagePreview *msg)
             msg->input.buff->data, msg->output.buff->data);
 
     if (status == NO_ERROR) {
-        status = mPreviewThread->preview(&msg->input, &msg->output);
+        CameraBuffer previewIn = msg->input;
+        CameraBuffer previewOut = msg->output;
+        previewIn.type = BUFFER_TYPE_PREVIEW;
+        previewOut.type = BUFFER_TYPE_PREVIEW;
+
+        status = mPreviewThread->preview(&previewIn, &previewOut);
+        if (status != NO_ERROR) {
+            LOGE("failed to send preview buffer");
+            IBufferOwner *owner = previewIn.owner;
+            if (owner)
+                owner->returnBuffer(&previewIn);
+        }
     }
 
     return status;
@@ -123,9 +134,31 @@ status_t PipeThread::handleMessagePreviewVideo(MessagePreviewVideo *msg)
             msg->input.buff->data, msg->output.buff->data);
 
     if (status == NO_ERROR) {
-        status = mPreviewThread->preview(&msg->input, &msg->output);
+        CameraBuffer previewIn = msg->input;
+        CameraBuffer previewOut = msg->output;
+        CameraBuffer video = msg->output;
+
+        previewIn.type = BUFFER_TYPE_PREVIEW;
+        previewOut.type = BUFFER_TYPE_PREVIEW;
+        video.type = BUFFER_TYPE_VIDEO; // preview and video buffers are shared
+
+        status = mPreviewThread->preview(&previewIn, &previewOut);
         if (status == NO_ERROR) {
-            status = mVideoThread->video(&msg->output, msg->timestamp);
+
+            status = mVideoThread->video(&video, msg->timestamp);
+            if (status != NO_ERROR) {
+                // only need to return video buffer since preview buffer was successful
+                LOGE("failed to send preview buffer");
+                IBufferOwner *owner = video.owner;
+                if (owner)
+                    owner->returnBuffer(&video);
+            }
+        } else {
+            // return both preview and video buffers
+            LOGE("failed to send preview buffer");
+            IBufferOwner *owner = previewIn.owner;
+            if (owner)
+                owner->returnBuffer(&previewIn, &video);
         }
     }
 
