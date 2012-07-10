@@ -61,26 +61,26 @@ ControlThread::ControlThread(int cameraId) :
 
     status_t status = mPreviewThread->run();
     if (status != NO_ERROR) {
-        LOGE("Error starting preview thread!");
+        ALOGE("Error starting preview thread!");
     }
     status = mPictureThread->run();
     if (status != NO_ERROR) {
-        LOGW("Error starting picture thread!");
+        ALOGW("Error starting picture thread!");
     }
     status = mVideoThread->run();
     if (status != NO_ERROR) {
-        LOGW("Error starting video thread!");
+        ALOGW("Error starting video thread!");
     }
     status = mPipeThread->run();
     if (status != NO_ERROR) {
-        LOGW("Error starting pipe thread!");
+        ALOGW("Error starting pipe thread!");
     }
     m_pFaceDetector=FaceDetectorFactory::createDetector(mCallbacks);
     if (m_pFaceDetector != 0){
         mParameters.set(CameraParameters::KEY_MAX_NUM_DETECTED_FACES_HW,
                 m_pFaceDetector->getMaxFacesDetectable());
     } else {
-        LOGE("Failed on creating face detector.");
+        ALOGE("Failed on creating face detector.");
     }
 }
 
@@ -108,7 +108,7 @@ ControlThread::~ControlThread()
     }
     if (m_pFaceDetector != 0) {
         if (!FaceDetectorFactory::destroyDetector(m_pFaceDetector)){
-            LOGE("Failed on destroy face detector thru factory");
+            ALOGE("Failed on destroy face detector thru factory");
             delete m_pFaceDetector;//should not happen.
         }
         m_pFaceDetector = 0;
@@ -289,7 +289,7 @@ status_t ControlThread::gatherExifInfo(const CameraParameters *params, bool flas
 {
     status_t status = NO_ERROR;
     if (params == NULL || exif == NULL) {
-        LOGE("null params in %s", __FUNCTION__);
+        ALOGE("null params in %s", __FUNCTION__);
         return BAD_VALUE;
     }
 
@@ -377,7 +377,7 @@ status_t ControlThread::gatherExifInfo(const CameraParameters *params, bool flas
 
     status = mDriver->getFNumber(&fNumber);
     if (status != NO_ERROR) {
-        LOGE("failed to get fNumber");
+        ALOGE("failed to get fNumber");
         return status;
     }
 
@@ -389,7 +389,7 @@ status_t ControlThread::gatherExifInfo(const CameraParameters *params, bool flas
                              &exposureBias,
                              &aperture);
     if (status != NO_ERROR) {
-        LOGE("failed to get exposure info");
+        ALOGE("failed to get exposure info");
         return status;
     }
 
@@ -398,13 +398,13 @@ status_t ControlThread::gatherExifInfo(const CameraParameters *params, bool flas
 
     status = mDriver->getBrightness(&brightness);
     if (status != NO_ERROR) {
-        LOGE("failed to get brightness");
+        ALOGE("failed to get brightness");
         return status;
     }
 
     status = mDriver->getIsoSpeed(&isoSpeed);
     if (status != NO_ERROR) {
-        LOGE("failed to get iso speed");
+        ALOGE("failed to get iso speed");
         return status;
     }
 
@@ -414,19 +414,19 @@ status_t ControlThread::gatherExifInfo(const CameraParameters *params, bool flas
 
     status = mDriver->getMeteringMode(&meteringMode);
     if (status != NO_ERROR) {
-        LOGE("failed to get metering mode");
+        ALOGE("failed to get metering mode");
         return status;
     }
 
     status = mDriver->getAWBMode(&wbMode);
     if (status != NO_ERROR) {
-        LOGE("failed to get awb mode");
+        ALOGE("failed to get awb mode");
         return status;
     }
 
     status = mDriver->getSceneMode(&sceneMode);
     if (status != NO_ERROR) {
-        LOGE("failed to get scene mode");
+        ALOGE("failed to get scene mode");
         return status;
     }
 
@@ -509,14 +509,14 @@ status_t ControlThread::returnPreviewBuffer(CameraBuffer *buff)
     if (mState == STATE_PREVIEW_STILL) {
         status = mDriver->putPreviewFrame(buff);
         if (status != NO_ERROR) {
-            LOGE("Error putting preview frame to driver");
+            ALOGE("Error putting preview frame to driver");
         }
     } else if (mState == STATE_PREVIEW_VIDEO || mState == STATE_RECORDING) {
         if (mCoupledBuffers && buff->id < mNumBuffers) {
             mCoupledBuffers[buff->id].previewBuffReturned = true;
             status = queueCoupledBuffers(buff->id);
             if (status != NO_ERROR) {
-                LOGE("Error queing coupled buffers for preview");
+                ALOGE("Error queing coupled buffers for preview");
             }
         }
     }
@@ -532,7 +532,7 @@ status_t ControlThread::returnVideoBuffer(CameraBuffer *buff)
             mCoupledBuffers[buff->id].recordingBuffReturned = true;
             status = queueCoupledBuffers(buff->id);
             if (status != NO_ERROR) {
-                LOGE("Error queing coupled buffers for video");
+                ALOGE("Error queing coupled buffers for video");
             }
         }
     }
@@ -553,7 +553,7 @@ status_t ControlThread::returnSnapshotBuffer(CameraBuffer *buff)
     } else if (mState == STATE_CAPTURE) {
         status = mDriver->putSnapshot(buff);
         if (status != NO_ERROR) {
-            LOGE("Error in putting snapshot!");
+            ALOGE("Error in putting snapshot!");
             return status;
         }
     }
@@ -603,7 +603,7 @@ status_t ControlThread::startPreviewCore(bool videoMode)
     CameraDriver::Mode mode;
 
     if (mState != STATE_STOPPED) {
-        LOGE("Must be in STATE_STOPPED to start preview");
+        ALOGE("Must be in STATE_STOPPED to start preview");
         return INVALID_OPERATION;
     }
 
@@ -621,7 +621,7 @@ status_t ControlThread::startPreviewCore(bool videoMode)
     videoFormat = V4L2Format(mParameters.get(CameraParameters::KEY_VIDEO_FRAME_FORMAT));
 
     if (previewFormat != videoFormat) {
-        LOGE("preview and video format must be the same");
+        ALOGE("preview and video format must be the same");
         return BAD_VALUE;
     }
 
@@ -654,7 +654,7 @@ status_t ControlThread::startPreviewCore(bool videoMode)
     if (status == NO_ERROR) {
         mState = state;
     } else {
-        LOGE("Error starting driver!");
+        ALOGE("Error starting driver!");
     }
 
     return status;
@@ -667,17 +667,17 @@ status_t ControlThread::stopPreviewCore()
 
     status = mPipeThread->flushBuffers();
     if (status != NO_ERROR)
-        LOGE("error flushing pipe buffers");
+        ALOGE("error flushing pipe buffers");
 
     status = mPreviewThread->flushBuffers();
     if (status != NO_ERROR)
-        LOGE("error flushing preview buffers");
+        ALOGE("error flushing preview buffers");
 
     status = mDriver->stop();
     if (status == NO_ERROR) {
         mState = STATE_STOPPED;
     } else {
-        LOGE("Error stopping driver in preview mode!");
+        ALOGE("Error stopping driver in preview mode!");
     }
 
     for (int i = 0; i < mNumBuffers; i++) {
@@ -698,19 +698,19 @@ status_t ControlThread::stopCapture()
     status_t status = NO_ERROR;
 
     if (mState != STATE_CAPTURE) {
-        LOGE("Must be in STATE_CAPTURE to stop capture");
+        ALOGE("Must be in STATE_CAPTURE to stop capture");
         return INVALID_OPERATION;
     }
 
     status = mPictureThread->flushBuffers();
     if (status != NO_ERROR) {
-        LOGE("Error flushing PictureThread!");
+        ALOGE("Error flushing PictureThread!");
         return status;
     }
 
     status = mDriver->stop();
     if (status != NO_ERROR) {
-        LOGE("Error stopping driver!");
+        ALOGE("Error stopping driver!");
         return status;
     }
 
@@ -738,7 +738,7 @@ status_t ControlThread::handleMessageStartPreview()
     if (mState == STATE_CAPTURE) {
         status = stopCapture();
         if (status != NO_ERROR) {
-            LOGE("Could not stop capture before start preview!");
+            ALOGE("Could not stop capture before start preview!");
             return status;
         }
     }
@@ -749,7 +749,7 @@ status_t ControlThread::handleMessageStartPreview()
         bool videoMode = isParameterSet(CameraParameters::KEY_RECORDING_HINT) ? true : false;
         status = startPreviewCore(videoMode);
     } else {
-        LOGE("Error starting preview. Invalid state!");
+        ALOGE("Error starting preview. Invalid state!");
         status = INVALID_OPERATION;
     }
 
@@ -768,7 +768,7 @@ status_t ControlThread::handleMessageStopPreview()
         if (mState != STATE_STOPPED) {
             status = stopPreviewCore();
         } else {
-            LOGE("Error stopping preview. Invalid state!");
+            ALOGE("Error stopping preview. Invalid state!");
             status = INVALID_OPERATION;
         }
     }
@@ -793,13 +793,13 @@ status_t ControlThread::handleMessageStartRecording()
             if ((status = mDriver->start(CameraDriver::MODE_VIDEO)) == NO_ERROR) {
                 mState = STATE_RECORDING;
             } else {
-                LOGE("Error starting driver in VIDEO mode!");
+                ALOGE("Error starting driver in VIDEO mode!");
             }
         } else {
-            LOGE("Error stopping driver!");
+            ALOGE("Error stopping driver!");
         }
     } else {
-        LOGE("Error starting recording. Invalid state!");
+        ALOGE("Error starting recording. Invalid state!");
         status = INVALID_OPERATION;
     }
 
@@ -816,7 +816,7 @@ status_t ControlThread::handleMessageStopRecording()
     if (mState == STATE_RECORDING) {
         mState = STATE_PREVIEW_VIDEO;
     } else {
-        LOGE("Error stopping recording. Invalid state!");
+        ALOGE("Error stopping recording. Invalid state!");
         status = INVALID_OPERATION;
     }
 
@@ -835,7 +835,7 @@ status_t ControlThread::handleMessageTakePicture()
     int height;
 
     if (origState != STATE_PREVIEW_STILL && origState != STATE_RECORDING) {
-        LOGE("we only support snapshot in still preview and recording");
+        ALOGE("we only support snapshot in still preview and recording");
         return INVALID_OPERATION;
     }
 
@@ -844,7 +844,7 @@ status_t ControlThread::handleMessageTakePicture()
     if (origState == STATE_PREVIEW_STILL) {
         status = stopPreviewCore();
         if (status != NO_ERROR) {
-            LOGE("Error stopping preview!");
+            ALOGE("Error stopping preview!");
             return status;
         }
         mState = STATE_CAPTURE;
@@ -857,7 +857,7 @@ status_t ControlThread::handleMessageTakePicture()
         int vidWidth, vidHeight;
         mDriver->getVideoSize(&vidWidth, &vidHeight);
         if (width != vidWidth || height != vidHeight) {
-            LOGW("Warning overriding snapshot size=%d,%d to %d,%d",
+            ALOGW("Warning overriding snapshot size=%d,%d to %d,%d",
                     width, height, vidWidth, vidHeight);
             width = vidWidth;
             height = vidHeight;
@@ -899,13 +899,13 @@ status_t ControlThread::handleMessageTakePicture()
         mDriver->setSnapshotFrameSize(width, height);
 
         if ((status = mDriver->start(CameraDriver::MODE_CAPTURE)) != NO_ERROR) {
-            LOGE("Error starting the driver in CAPTURE mode!");
+            ALOGE("Error starting the driver in CAPTURE mode!");
             return status;
         }
 
         // Get the snapshot
         if ((status = mDriver->getSnapshot(&snapshotBuffer)) != NO_ERROR) {
-            LOGE("Error in grabbing snapshot!");
+            ALOGE("Error in grabbing snapshot!");
             return status;
         }
         snapshotBuffer.type = BUFFER_TYPE_SNAPSHOT;
@@ -913,7 +913,7 @@ status_t ControlThread::handleMessageTakePicture()
 
         if (mThumbSupported) {
             if ((status = mDriver->getThumbnail(&postviewBuffer)) != NO_ERROR) {
-                LOGE("Error in grabbing thumbnail!");
+                ALOGE("Error in grabbing thumbnail!");
                 return status;
             }
         }
@@ -997,7 +997,7 @@ status_t ControlThread::handleMessageReleaseRecordingFrame(MessageReleaseRecordi
     if (mState == STATE_RECORDING) {
         CameraBuffer *buff = findRecordingBuffer(msg->buff);
         if (buff == NULL) {
-            LOGE("Could not find recording buffer: %p", msg->buff);
+            ALOGE("Could not find recording buffer: %p", msg->buff);
             return DEAD_OBJECT;
         }
         LOG2("Recording buffer released from encoder, buff id = %d", buff->id);
@@ -1027,7 +1027,7 @@ status_t ControlThread::handleMessageReturnBuffer(MessageReturnBuffer *msg)
         } else if (buff->type == BUFFER_TYPE_SNAPSHOT) {
             returnSnapshotBuffer(buff);
         } else {
-            LOGE("invalid buffer type for buff %d", i);
+            ALOGE("invalid buffer type for buff %d", i);
             return UNKNOWN_ERROR;
         }
     }
@@ -1051,7 +1051,7 @@ status_t ControlThread::queueCoupledBuffers(int coupledId)
     if (status == DEAD_OBJECT) {
         LOG1("Stale recording buffer returned to driver");
     } else if (status != NO_ERROR) {
-        LOGE("Error putting recording frame to driver");
+        ALOGE("Error putting recording frame to driver");
     }
 
     return status;
@@ -1075,14 +1075,14 @@ status_t ControlThread::validateParameters(const CameraParameters *params)
     int previewWidth, previewHeight;
     params->getPreviewSize(&previewWidth, &previewHeight);
     if (previewWidth <= 0 || previewHeight <= 0) {
-        LOGE("bad preview size");
+        ALOGE("bad preview size");
         return BAD_VALUE;
     }
 
     int minFPS, maxFPS;
     params->getPreviewFpsRange(&minFPS, &maxFPS);
     if (minFPS > maxFPS) {
-        LOGE("invalid fps range [%d,%d]", minFPS, maxFPS);
+        ALOGE("invalid fps range [%d,%d]", minFPS, maxFPS);
         return BAD_VALUE;
     }
 
@@ -1090,7 +1090,7 @@ status_t ControlThread::validateParameters(const CameraParameters *params)
     int videoWidth, videoHeight;
     params->getPreviewSize(&videoWidth, &videoHeight);
     if (videoWidth <= 0 || videoHeight <= 0) {
-        LOGE("bad video size");
+        ALOGE("bad video size");
         return BAD_VALUE;
     }
 
@@ -1098,7 +1098,7 @@ status_t ControlThread::validateParameters(const CameraParameters *params)
     int pictureWidth, pictureHeight;
     params->getPreviewSize(&pictureWidth, &pictureHeight);
     if (pictureWidth <= 0 || pictureHeight <= 0) {
-        LOGE("bad picture size");
+        ALOGE("bad picture size");
         return BAD_VALUE;
     }
 
@@ -1106,7 +1106,7 @@ status_t ControlThread::validateParameters(const CameraParameters *params)
     int zoom = params->getInt(CameraParameters::KEY_ZOOM);
     int maxZoom = params->getInt(CameraParameters::KEY_MAX_ZOOM);
     if (zoom > maxZoom) {
-        LOGE("bad zoom index");
+        ALOGE("bad zoom index");
         return BAD_VALUE;
     }
 
@@ -1114,7 +1114,7 @@ status_t ControlThread::validateParameters(const CameraParameters *params)
     const char* flashMode = params->get(CameraParameters::KEY_FLASH_MODE);
     const char* flashModes = params->get(CameraParameters::KEY_SUPPORTED_FLASH_MODES);
     if (strstr(flashModes, flashMode) == NULL) {
-        LOGE("bad flash mode");
+        ALOGE("bad flash mode");
         return BAD_VALUE;
     }
 
@@ -1122,7 +1122,7 @@ status_t ControlThread::validateParameters(const CameraParameters *params)
     const char* focusMode = params->get(CameraParameters::KEY_FOCUS_MODE);
     const char* focusModes = params->get(CameraParameters::KEY_SUPPORTED_FOCUS_MODES);
     if (strstr(focusModes, focusMode) == NULL) {
-        LOGE("bad focus mode");
+        ALOGE("bad focus mode");
         return BAD_VALUE;
     }
 
@@ -1151,18 +1151,18 @@ status_t ControlThread::validateParameters(const CameraParameters *params)
                   continue;
                 }
                 if (i != 5) {
-                    LOGE("bad focus window format");
+                    ALOGE("bad focus window format");
                     return BAD_VALUE;
                 }
                 bool verified = verifyCameraWindow(focusWindow);
                 if (!verified) {
-                    LOGE("bad focus window");
+                    ALOGE("bad focus window");
                     return BAD_VALUE;
                 }
             }
             // make sure not too many windows defined (to pass CTS)
             if (argTail) {
-                LOGE("bad - too many focus windows or bad format for focus window string");
+                ALOGE("bad - too many focus windows or bad format for focus window string");
                 return BAD_VALUE;
             }
         }
@@ -1193,18 +1193,18 @@ status_t ControlThread::validateParameters(const CameraParameters *params)
                   continue;
                 }
                 if (i != 5) {
-                    LOGE("bad metering window format");
+                    ALOGE("bad metering window format");
                     return BAD_VALUE;
                 }
                 bool verified = verifyCameraWindow(meteringWindow);
                 if (!verified) {
-                    LOGE("bad metering window");
+                    ALOGE("bad metering window");
                     return BAD_VALUE;
                 }
             }
             // make sure not too many windows defined (to pass CTS)
             if (argTail) {
-                LOGE("bad - too many metering windows or bad format for metering window string");
+                ALOGE("bad - too many metering windows or bad format for metering window string");
                 return BAD_VALUE;
             }
         }
@@ -1289,7 +1289,7 @@ status_t ControlThread::processParamAWBLock(const CameraParameters *oldParams,
         } else if(!strncmp(newValue, CameraParameters::FALSE, strlen(CameraParameters::FALSE))) {
             awb_lock = false;
         } else {
-            LOGE("Invalid value received for %s: %s", CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK, newValue);
+            ALOGE("Invalid value received for %s: %s", CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK, newValue);
             return INVALID_OPERATION;
         }
 
@@ -1320,7 +1320,7 @@ status_t ControlThread::processParamAELock(const CameraParameters *oldParams,
         } else  if(!strncmp(newValue, CameraParameters::FALSE, strlen(CameraParameters::FALSE))) {
             ae_lock = false;
         } else {
-            LOGE("Invalid value received for %s: %s", CameraParameters::KEY_AUTO_EXPOSURE_LOCK, newValue);
+            ALOGE("Invalid value received for %s: %s", CameraParameters::KEY_AUTO_EXPOSURE_LOCK, newValue);
             return INVALID_OPERATION;
         }
 
@@ -1353,7 +1353,7 @@ status_t ControlThread::processParamFlash(const CameraParameters *oldParams,
         } else if (!strncmp(newValue, CameraParameters::FLASH_MODE_TORCH, strlen(CameraParameters::FLASH_MODE_RED_EYE))) {
             flashMode = CameraDriver::FLASH_MODE_RED_EYE;
         } else {
-            LOGE("Invalid flash mode");
+            ALOGE("Invalid flash mode");
             return BAD_VALUE;
         }
 
@@ -1395,7 +1395,7 @@ status_t ControlThread::processParamEffect(const CameraParameters *oldParams,
         } else if (!strncmp(newEffect, CameraParameters::EFFECT_AQUA, strlen(CameraParameters::EFFECT_AQUA))) {
             effect = CameraDriver::EFFECT_AQUA;
         } else {
-            LOGE("Invalid color effect");
+            ALOGE("Invalid color effect");
             return BAD_VALUE;
         }
 
@@ -1449,7 +1449,7 @@ status_t ControlThread::processParamSceneMode(const CameraParameters *oldParams,
         } else if (!strncmp (newScene, CameraParameters::SCENE_MODE_BARCODE, strlen(CameraParameters::SCENE_MODE_BARCODE))) {
             scene = CameraDriver::SCENE_MODE_BARCODE;
         } else {
-            LOGE("Invalid scene mode");
+            ALOGE("Invalid scene mode");
             return BAD_VALUE;
         }
 
@@ -1540,11 +1540,11 @@ status_t ControlThread::processParamFocusMode(const CameraParameters *oldParams,
         } else if (!strncmp(newFocus, CameraParameters::FOCUS_MODE_CONTINUOUS_PICTURE, strlen(CameraParameters::FOCUS_MODE_CONTINUOUS_PICTURE))) {
             focus = CameraDriver::FOCUS_MODE_CONTINUOUS_PICTURE;
         } else {
-            LOGE("Bad focus value");
+            ALOGE("Bad focus value");
             return BAD_VALUE;
         }
     } else {
-        LOGE("NULL focus value");
+        ALOGE("NULL focus value");
         return BAD_VALUE;
     }
 
@@ -1587,7 +1587,7 @@ status_t ControlThread::processParamFocusMode(const CameraParameters *oldParams,
                 if (verified) {
                     winCount++;
                 } else {
-                    LOGW("Ignoring invalid focus area: (%d,%d,%d,%d,%d)",
+                    ALOGW("Ignoring invalid focus area: (%d,%d,%d,%d,%d)",
                             focusWindows[winCount].x_left,
                             focusWindows[winCount].y_top,
                             focusWindows[winCount].x_right,
@@ -1645,7 +1645,7 @@ status_t ControlThread:: processParamSetMeteringAreas(const CameraParameters *ol
             if (verified) {
                 winCount++;
             } else {
-                LOGW("Ignoring invalid metering area: (%d,%d,%d,%d,%d)",
+                ALOGW("Ignoring invalid metering area: (%d,%d,%d,%d,%d)",
                         meteringWindows[winCount].x_left,
                         meteringWindows[winCount].y_top,
                         meteringWindows[winCount].x_right,
@@ -1688,7 +1688,7 @@ status_t ControlThread::processParamWhiteBalance(const CameraParameters *oldPara
         } else if (!strncmp(newWb, CameraParameters::WHITE_BALANCE_SHADE, strlen(CameraParameters::WHITE_BALANCE_SHADE))) {
             wbMode = CameraDriver::WHITE_BALANCE_SHADE;
         } else {
-            LOGE("invalid wb mode");
+            ALOGE("invalid wb mode");
             return BAD_VALUE;
         }
 
@@ -1757,7 +1757,7 @@ status_t ControlThread::processStaticParameters(const CameraParameters *oldParam
          *  aspect ratio. Also, the video size must be at least as preview size
          */
         if (fabsf(videoAspectRatio - previewAspectRatio) > ASPECT_TOLERANCE) {
-            LOGW("Requested video (%dx%d) aspect ratio does not match preview \
+            ALOGW("Requested video (%dx%d) aspect ratio does not match preview \
                  (%dx%d) aspect ratio! The preview will be stretched!",
                     newWidth, newHeight,
                     previewWidth, previewHeight);
@@ -1806,7 +1806,7 @@ status_t ControlThread::processStaticParameters(const CameraParameters *oldParam
         case STATE_STOPPED:
             break;
         default:
-            LOGE("formats can only be changed while in preview or stop states");
+            ALOGE("formats can only be changed while in preview or stop states");
             break;
         };
     }
@@ -1835,7 +1835,7 @@ status_t ControlThread::handleMessageSetParameters(MessageSetParameters *msg)
         newParams.getPreviewSize(&pWidth, &pHeight);
         newParams.getVideoSize(&vWidth, &vHeight);
         if (vWidth < pWidth || vHeight < pHeight) {
-            LOGW("Warning: Video dimension(s) is smaller than preview dimension(s). "
+            ALOGW("Warning: Video dimension(s) is smaller than preview dimension(s). "
                     "Overriding preview resolution to video resolution [%d, %d] --> [%d, %d]",
                     pWidth, pHeight, vWidth, vHeight);
             newParams.setPreviewSize(vWidth, vHeight);
@@ -2035,13 +2035,13 @@ status_t ControlThread::waitForAndExecuteMessage()
             status = handleMessageCommand(&msg.data.command);
             break;
         default:
-            LOGE("Invalid message");
+            ALOGE("Invalid message");
             status = BAD_VALUE;
             break;
     };
 
     if (status != NO_ERROR)
-        LOGE("Error handling message: %d", (int) msg.id);
+        ALOGE("Error handling message: %d", (int) msg.id);
     return status;
 }
 
@@ -2075,9 +2075,9 @@ status_t ControlThread::dequeuePreview()
         CameraBuffer *convBuff = &mConversionBuffers[buff.id];
         status = mPipeThread->preview(&buff, convBuff);
         if (status != NO_ERROR)
-            LOGE("Error sending buffer to preview thread");
+            ALOGE("Error sending buffer to preview thread");
     } else {
-        LOGE("Error gettting preview frame from driver");
+        ALOGE("Error gettting preview frame from driver");
     }
     return status;
 }
@@ -2113,7 +2113,7 @@ status_t ControlThread::dequeueRecording()
         }
 
     } else {
-        LOGE("Error: getting recording from driver\n");
+        ALOGE("Error: getting recording from driver\n");
     }
 
     return status;

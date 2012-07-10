@@ -115,7 +115,7 @@ status_t PipeThread::handleMessagePreview(MessagePreview *msg)
 
         status = mPreviewThread->preview(&previewIn, &previewOut);
         if (status != NO_ERROR) {
-            LOGE("failed to send preview buffer");
+            ALOGE("failed to send preview buffer");
             IBufferOwner *owner = previewIn.owner;
             if (owner)
                 owner->returnBuffer(&previewIn);
@@ -148,14 +148,14 @@ status_t PipeThread::handleMessagePreviewVideo(MessagePreviewVideo *msg)
             status = mVideoThread->video(&video, msg->timestamp);
             if (status != NO_ERROR) {
                 // only need to return video buffer since preview buffer was successful
-                LOGE("failed to send preview buffer");
+                ALOGE("failed to send preview buffer");
                 IBufferOwner *owner = video.owner;
                 if (owner)
                     owner->returnBuffer(&video);
             }
         } else {
             // return both preview and video buffers
-            LOGE("failed to send preview buffer");
+            ALOGE("failed to send preview buffer");
             IBufferOwner *owner = previewIn.owner;
             if (owner)
                 owner->returnBuffer(&previewIn, &video);
@@ -199,7 +199,7 @@ status_t PipeThread::waitForAndExecuteMessage()
             break;
 
         default:
-            LOGE("Invalid message");
+            ALOGE("Invalid message");
             status = BAD_VALUE;
             break;
     };

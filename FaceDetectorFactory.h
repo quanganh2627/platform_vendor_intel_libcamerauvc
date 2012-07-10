@@ -30,13 +30,13 @@ public:
      */
     static IFaceDetector* createDetector(IFaceDetectionListener* listener)
     {
-        LOGE("%s: not implemented !!", __FUNCTION__);
+        ALOGE("%s: not implemented !!", __FUNCTION__);
         return 0;
     }
 
     static bool destroyDetector(IFaceDetector* d)
     {
-        LOGE("%s: not implemented !!", __FUNCTION__);
+        ALOGE("%s: not implemented !!", __FUNCTION__);
         return false;
     }
 private:

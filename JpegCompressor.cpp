@@ -61,7 +61,7 @@ static boolean empty_output_buffer(j_compress_ptr cinfo)
     JpegDestinationManager *dest = (JpegDestinationManager*) cinfo->dest;
     if(dest->outJpegBufSize < *(dest->dataCount) + JPEG_BLOCK_SIZE)
     {
-        LOGE("JPEGLIB: empty_output_buffer overflow!");
+        ALOGE("JPEGLIB: empty_output_buffer overflow!");
         *(dest->dataCount) = 0;
         return FALSE;
     }
@@ -82,7 +82,7 @@ static void term_destination(j_compress_ptr cinfo)
     if(dest->outJpegBufSize < dataCount || dataCount < 0)
     {
         if (dataCount < 0)
-            LOGE("jpeg overrun. this should not happen");
+            ALOGE("jpeg overrun. this should not happen");
 
         *(dest->dataCount) = 0;
         return;
@@ -136,7 +136,7 @@ JpegCompressor::JpegCompressor() :
     LOG1("@%s", __FUNCTION__);
     mJpegEncoder = SkImageEncoder::Create(SkImageEncoder::kJPEG_Type);
     if (mJpegEncoder == NULL) {
-        LOGE("No memory for Skia JPEG encoder!");
+        ALOGE("No memory for Skia JPEG encoder!");
     }
     memset(mVaInputSurfacesPtr, 0, sizeof(mVaInputSurfacesPtr));
     mJpegSize = -1;
@@ -175,7 +175,7 @@ int JpegCompressor::encode(const InputBuffer &in, const OutputBuffer &out)
     JSAMPROW row_pointer[1];
 
     if (in.width == 0 || in.height == 0 || in.format == 0) {
-        LOGE("Invalid input received!");
+        ALOGE("Invalid input received!");
         mJpegSize = -1;
         goto exit;
     }
@@ -183,13 +183,13 @@ int JpegCompressor::encode(const InputBuffer &in, const OutputBuffer &out)
         // Choose Skia
         LOG1("Choosing Skia for JPEG encoding");
         if (mJpegEncoder == NULL) {
-            LOGE("Skia JpegEncoder not created, cannot encode to JPEG!");
+            ALOGE("Skia JpegEncoder not created, cannot encode to JPEG!");
             mJpegSize = -1;
             goto exit;
         }
         bool success = convertRawImage((void*)in.buf, (void*)out.buf, in.width, in.height, in.format);
         if (!success) {
-            LOGE("Could not convert the raw image!");
+            ALOGE("Could not convert the raw image!");
             mJpegSize = -1;
             goto exit;
         }
@@ -200,7 +200,7 @@ int JpegCompressor::encode(const InputBuffer &in, const OutputBuffer &out)
             mJpegSize = skStream.getOffset();
             skStream.copyTo(out.buf);
         } else {
-            LOGE("Skia could not encode the stream!");
+            ALOGE("Skia could not encode the stream!");
             mJpegSize = -1;
             goto exit;
         }

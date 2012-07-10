@@ -86,7 +86,7 @@ camera_module_t HAL_MODULE_INFO_SYM = {
 static int camera_set_preview_window(struct camera_device * device,
         struct preview_stream_ops *window)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if(!device)
         return -EINVAL;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -100,7 +100,7 @@ static void camera_set_callbacks(struct camera_device * device,
         camera_request_memory get_memory,
         void *user)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if(!device)
         return;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -109,7 +109,7 @@ static void camera_set_callbacks(struct camera_device * device,
 
 static void camera_enable_msg_type(struct camera_device * device, int32_t msg_type)
 {
-    LOGD("%s msg_type=0x%08x", __FUNCTION__, msg_type);
+    ALOGD("%s msg_type=0x%08x", __FUNCTION__, msg_type);
     if(!device)
         return;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -118,7 +118,7 @@ static void camera_enable_msg_type(struct camera_device * device, int32_t msg_ty
 
 static void camera_disable_msg_type(struct camera_device * device, int32_t msg_type)
 {
-    LOGD("%s msg_type=0x%08x", __FUNCTION__, msg_type);
+    ALOGD("%s msg_type=0x%08x", __FUNCTION__, msg_type);
     if(!device)
         return;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -127,7 +127,7 @@ static void camera_disable_msg_type(struct camera_device * device, int32_t msg_t
 
 static int camera_msg_type_enabled(struct camera_device * device, int32_t msg_type)
 {
-    LOGD("%s msg_type=0x%08x", __FUNCTION__, msg_type);
+    ALOGD("%s msg_type=0x%08x", __FUNCTION__, msg_type);
     if(!device)
         return 0;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -136,7 +136,7 @@ static int camera_msg_type_enabled(struct camera_device * device, int32_t msg_ty
 
 static int camera_start_preview(struct camera_device * device)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if(!device)
         return -EINVAL;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -145,7 +145,7 @@ static int camera_start_preview(struct camera_device * device)
 
 static void camera_stop_preview(struct camera_device * device)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if(!device)
         return;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -154,7 +154,7 @@ static void camera_stop_preview(struct camera_device * device)
 
 static int camera_preview_enabled(struct camera_device * device)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if(!device)
         return -EINVAL;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -163,7 +163,7 @@ static int camera_preview_enabled(struct camera_device * device)
 
 static int camera_start_recording(struct camera_device * device)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if(!device)
         return -EINVAL;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -172,7 +172,7 @@ static int camera_start_recording(struct camera_device * device)
 
 static void camera_stop_recording(struct camera_device * device)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if(!device)
         return;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -181,7 +181,7 @@ static void camera_stop_recording(struct camera_device * device)
 
 static int camera_recording_enabled(struct camera_device * device)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if(!device)
         return -EINVAL;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -191,7 +191,7 @@ static int camera_recording_enabled(struct camera_device * device)
 static void camera_release_recording_frame(struct camera_device * device,
                const void *opaque)
 {
-    LOGV("%s", __FUNCTION__);
+    ALOGV("%s", __FUNCTION__);
     if(!device)
         return;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -200,7 +200,7 @@ static void camera_release_recording_frame(struct camera_device * device,
 
 static int camera_auto_focus(struct camera_device * device)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if(!device)
         return -EINVAL;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -209,7 +209,7 @@ static int camera_auto_focus(struct camera_device * device)
 
 static int camera_cancel_auto_focus(struct camera_device * device)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if(!device)
         return -EINVAL;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -218,7 +218,7 @@ static int camera_cancel_auto_focus(struct camera_device * device)
 
 static int camera_take_picture(struct camera_device * device)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if(!device)
         return -EINVAL;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -227,7 +227,7 @@ static int camera_take_picture(struct camera_device * device)
 
 static int camera_cancel_picture(struct camera_device * device)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if(!device)
         return -EINVAL;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -236,7 +236,7 @@ static int camera_cancel_picture(struct camera_device * device)
 
 static int camera_set_parameters(struct camera_device * device, const char *params)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if(!device)
         return -EINVAL;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -246,7 +246,7 @@ static int camera_set_parameters(struct camera_device * device, const char *para
 static char *camera_get_parameters(struct camera_device * device)
 {
     char* params = NULL;
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if(!device)
         return NULL;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -256,7 +256,7 @@ static char *camera_get_parameters(struct camera_device * device)
 
 static void camera_put_parameters(struct camera_device *device, char *parms)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if(!device)
         return;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -266,7 +266,7 @@ static void camera_put_parameters(struct camera_device *device, char *parms)
 static int camera_send_command(struct camera_device * device,
             int32_t cmd, int32_t arg1, int32_t arg2)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     if (!device)
         return -EINVAL;
     camera_hal *cam = (camera_hal *)(device->priv);
@@ -277,13 +277,13 @@ static int camera_send_command(struct camera_device * device,
 
 static void camera_release(struct camera_device * device)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     // TODO: implement
 }
 
 static int camera_dump(struct camera_device * device, int fd)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     // TODO: implement
     return 0;
 }
@@ -332,21 +332,21 @@ static camera_device_ops_t camera_ops = {
 static int CAMERA_OpenCameraHardware(const hw_module_t* module, const char* name,
                 hw_device_t** device)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
 
     Mutex::Autolock _l(camera_instance_lock);
 
     camera_device_t *camera_dev;
 
     if (num_camera_instances > 0) {
-        LOGE("error: we only support a single instance");
+        ALOGE("error: we only support a single instance");
         return -EINVAL;
     }
 
     camera_instance.camera_id = atoi(name);
     camera_instance.control_thread = new ControlThread(camera_instance.camera_id);
     if (camera_instance.control_thread == NULL) {
-        LOGE("Memory allocation error!");
+        ALOGE("Memory allocation error!");
         return NO_MEMORY;
     }
     camera_instance.control_thread->run();
@@ -368,7 +368,7 @@ static int CAMERA_OpenCameraHardware(const hw_module_t* module, const char* name
 
 static int CAMERA_CloseCameraHardware(hw_device_t* device)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
 
     Mutex::Autolock _l(camera_instance_lock);
 
@@ -388,12 +388,12 @@ static int CAMERA_CloseCameraHardware(hw_device_t* device)
 
 static int CAMERA_GetNumberOfCameras(void)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     return CameraDriver::getNumberOfCameras();
 }
 
 static int CAMERA_GetCameraInfo(int camera_id, struct camera_info *info)
 {
-    LOGD("%s", __FUNCTION__);
+    ALOGD("%s", __FUNCTION__);
     return CameraDriver::getCameraInfo(camera_id, info);
 }

@@ -112,10 +112,10 @@ status_t PreviewThread::handleMessagePreview(MessagePreview *msg)
         int stride;
         unsigned char *tmpRGBA;
         if ((err = mPreviewWindow->dequeue_buffer(mPreviewWindow, &buf, &stride)) != 0) {
-            LOGE("Surface::dequeueBuffer returned error %d", err);
+            ALOGE("Surface::dequeueBuffer returned error %d", err);
         } else {
             if (mPreviewWindow->lock_buffer(mPreviewWindow, buf) != NO_ERROR) {
-                LOGE("Failed to lock preview buffer!");
+                ALOGE("Failed to lock preview buffer!");
                 mPreviewWindow->cancel_buffer(mPreviewWindow, buf);
                 status = NO_MEMORY;
                 goto exit;
@@ -125,7 +125,7 @@ status_t PreviewThread::handleMessagePreview(MessagePreview *msg)
             void *dst;
 
             if (mapper.lock(*buf, GRALLOC_USAGE_SW_WRITE_OFTEN, bounds, &dst) != NO_ERROR) {
-                LOGE("Failed to lock GraphicBufferMapper!");
+                ALOGE("Failed to lock GraphicBufferMapper!");
                 mPreviewWindow->cancel_buffer(mPreviewWindow, buf);
                 status = NO_MEMORY;
                 goto exit;
@@ -145,7 +145,7 @@ status_t PreviewThread::handleMessagePreview(MessagePreview *msg)
                     stride*mPreviewHeight*4
                     );
             if ((err = mPreviewWindow->enqueue_buffer(mPreviewWindow, buf)) != 0) {
-                LOGE("Surface::queueBuffer returned error %d", err);
+                ALOGE("Surface::queueBuffer returned error %d", err);
             }
             mapper.unlock(*buf);
             free(tmpRGBA);
@@ -253,7 +253,7 @@ status_t PreviewThread::waitForAndExecuteMessage()
             break;
 
         default:
-            LOGE("Invalid message");
+            ALOGE("Invalid message");
             status = BAD_VALUE;
             break;
     };

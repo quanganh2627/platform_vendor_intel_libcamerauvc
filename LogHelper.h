@@ -27,7 +27,7 @@ static void setLogLevel(int level) {
     android_atomic_write(level, &gLogLevel);
 }
 
-#define LOG1(...) LOGD_IF(gLogLevel >= 1, __VA_ARGS__);
-#define LOG2(...) LOGD_IF(gLogLevel >= 2, __VA_ARGS__);
+#define LOG1(...) ALOGD_IF(gLogLevel >= 1, __VA_ARGS__);
+#define LOG2(...) ALOGD_IF(gLogLevel >= 2, __VA_ARGS__);
 
 #endif /* LOGHELPER_H_ */

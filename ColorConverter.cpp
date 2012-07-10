@@ -291,7 +291,7 @@ static status_t colorConvertYUYV(int dstFormat, int width, int height, void *src
         YUYVToRGB8888(width, height, src, dst);
         break;
     default:
-        LOGE("Invalid color format (dest)");
+        ALOGE("Invalid color format (dest)");
         return BAD_VALUE;
     };
 
@@ -311,7 +311,7 @@ static status_t colorConvertNV12(int dstFormat, int width, int height, void *src
         NV12ToRGB565(width, height, src, dst);
         break;
     default:
-        LOGE("Invalid color format (dest)");
+        ALOGE("Invalid color format (dest)");
         return BAD_VALUE;
     };
 
@@ -321,7 +321,7 @@ static status_t colorConvertNV12(int dstFormat, int width, int height, void *src
 status_t colorConvert(int srcFormat, int dstFormat, int width, int height, void *src, void *dst)
 {
     if (srcFormat == dstFormat) {
-        LOGE("src format is the same as dst format");
+        ALOGE("src format is the same as dst format");
         return BAD_VALUE;
     }
 
@@ -331,7 +331,7 @@ status_t colorConvert(int srcFormat, int dstFormat, int width, int height, void 
     case V4L2_PIX_FMT_NV12:
         return colorConvertNV12(dstFormat, width, height, src, dst);
     default:
-        LOGE("invalid (source) color format");
+        ALOGE("invalid (source) color format");
         return BAD_VALUE;
     };
 }
@@ -348,7 +348,7 @@ const char *cameraParametersFormat(int v4l2Format)
     case V4L2_PIX_FMT_JPEG:
         return CameraParameters::PIXEL_FORMAT_JPEG;
     default:
-        LOGE("failed to map format %x to a PIXEL_FORMAT\n", v4l2Format);
+        ALOGE("failed to map format %x to a PIXEL_FORMAT\n", v4l2Format);
         return NULL;
     };
 }
@@ -357,7 +357,7 @@ int V4L2Format(const char *cameraParamsFormat)
 {
     LOG1("@%s", __FUNCTION__);
     if (!cameraParamsFormat) {
-        LOGE("null cameraParamsFormat");
+        ALOGE("null cameraParamsFormat");
         return -1;
     }
 
@@ -377,7 +377,7 @@ int V4L2Format(const char *cameraParamsFormat)
     if (strncmp(cameraParamsFormat, CameraParameters::PIXEL_FORMAT_YUV422I, len) == 0)
         return V4L2_PIX_FMT_YUYV;
 
-    LOGE("invalid format %s", cameraParamsFormat);
+    ALOGE("invalid format %s", cameraParamsFormat);
     return -1;
 }
 

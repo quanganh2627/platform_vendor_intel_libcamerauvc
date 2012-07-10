@@ -93,13 +93,13 @@ CameraDriver::CameraDriver(int cameraId) :
 
     int ret = openDevice();
     if (ret < 0) {
-        LOGE("Failed to open device!");
+        ALOGE("Failed to open device!");
         return;
     }
 
     ret = detectDeviceResolutions();
     if (ret) {
-        LOGE("Failed to detect camera resolution! Use default settings");
+        ALOGE("Failed to detect camera resolution! Use default settings");
         if (mCameraSensor[cameraId]->info.facing == CAMERA_FACING_FRONT) {
             mConfig.snapshot.maxWidth  = MAX_FRONT_CAMERA_SNAPSHOT_WIDTH;
             mConfig.snapshot.maxHeight = MAX_FRONT_CAMERA_SNAPSHOT_HEIGHT;
@@ -154,7 +154,7 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
 {
     LOG2("@%s", __FUNCTION__);
     if (!params) {
-        LOGE("params is null!");
+        ALOGE("params is null!");
         return;
     }
 
@@ -331,7 +331,7 @@ status_t CameraDriver::startPreview()
 
     ret = openDevice();
     if (ret < 0) {
-        LOGE("Open device failed!");
+        ALOGE("Open device failed!");
         status = UNKNOWN_ERROR;
         return status;
     }
@@ -342,7 +342,7 @@ status_t CameraDriver::startPreview()
             mConfig.preview.height,
             NUM_DEFAULT_BUFFERS);
     if (ret < 0) {
-        LOGE("Configure device failed!");
+        ALOGE("Configure device failed!");
         status = UNKNOWN_ERROR;
         goto exitClose;
     }
@@ -352,7 +352,7 @@ status_t CameraDriver::startPreview()
 
     ret = startDevice();
     if (ret < 0) {
-        LOGE("Start device failed!");
+        ALOGE("Start device failed!");
         status = UNKNOWN_ERROR;
         goto exitDeconfig;
     }
@@ -385,7 +385,7 @@ status_t CameraDriver::startRecording()
 
     ret = openDevice();
     if (ret < 0) {
-        LOGE("Open device failed!");
+        ALOGE("Open device failed!");
         status = UNKNOWN_ERROR;
         return status;
     }
@@ -396,14 +396,14 @@ status_t CameraDriver::startRecording()
             mConfig.preview.height,
             NUM_DEFAULT_BUFFERS);
     if (ret < 0) {
-        LOGE("Configure device failed!");
+        ALOGE("Configure device failed!");
         status = UNKNOWN_ERROR;
         goto exitClose;
     }
 
     ret = startDevice();
     if (ret < 0) {
-        LOGE("Start device failed!");
+        ALOGE("Start device failed!");
         status = UNKNOWN_ERROR;
         goto exitDeconfig;
     }
@@ -436,7 +436,7 @@ status_t CameraDriver::startCapture()
 
     ret = openDevice();
     if (ret < 0) {
-        LOGE("Open device failed!");
+        ALOGE("Open device failed!");
         status = UNKNOWN_ERROR;
         return status;
     }
@@ -447,7 +447,7 @@ status_t CameraDriver::startCapture()
             mConfig.preview.height,
             NUM_DEFAULT_BUFFERS);
     if (ret < 0) {
-        LOGE("Configure device failed!");
+        ALOGE("Configure device failed!");
         status = UNKNOWN_ERROR;
         goto exitClose;
     }
@@ -457,7 +457,7 @@ status_t CameraDriver::startCapture()
 
     ret = startDevice();
     if (ret < 0) {
-        LOGE("Start device failed!");
+        ALOGE("Start device failed!");
         status = UNKNOWN_ERROR;
         goto exitDeconfig;
     }
@@ -490,7 +490,7 @@ int CameraDriver::configureDevice(Mode deviceMode, int w, int h, int numBuffers)
             w, h, deviceMode);
 
     if ((w <= 0) || (h <= 0)) {
-        LOGE("Wrong Width %d or Height %d", w, h);
+        ALOGE("Wrong Width %d or Height %d", w, h);
         return -1;
     }
 
@@ -516,7 +516,7 @@ int CameraDriver::configureDevice(Mode deviceMode, int w, int h, int numBuffers)
 
     status_t status = allocateBuffers(numBuffers);
     if (status != NO_ERROR) {
-        LOGE("error allocating buffers");
+        ALOGE("error allocating buffers");
         ret = -1;
     }
 
@@ -527,7 +527,7 @@ int CameraDriver::deconfigureDevice()
 {
     status_t status = freeBuffers();
     if (status != NO_ERROR) {
-        LOGE("Error freeing buffers");
+        ALOGE("Error freeing buffers");
         return -1;
     }
     return 0;
@@ -549,7 +549,7 @@ int CameraDriver::startDevice()
 
     ret = ioctl(fd, VIDIOC_STREAMON, &type);
     if (ret < 0) {
-        LOGE("VIDIOC_STREAMON returned: %d (%s)", ret, strerror(errno));
+        ALOGE("VIDIOC_STREAMON returned: %d (%s)", ret, strerror(errno));
         return ret;
     }
 
@@ -566,7 +566,7 @@ void CameraDriver::stopDevice()
 
     ret = ioctl(fd, VIDIOC_STREAMOFF, &type);
     if (ret < 0) {
-        LOGE("VIDIOC_STREAMOFF returned: %d (%s)", ret, strerror(errno));
+        ALOGE("VIDIOC_STREAMOFF returned: %d (%s)", ret, strerror(errno));
     }
 }
 
@@ -575,13 +575,13 @@ int CameraDriver::openDevice()
     int fd;
     LOG1("@%s", __FUNCTION__);
     if (mCameraSensor[mCameraId] == 0) {
-        LOGE("%s: Try to open non-existent camera", __FUNCTION__);
+        ALOGE("%s: Try to open non-existent camera", __FUNCTION__);
         return -ENODEV;
     }
 
     LOG1("@%s", __FUNCTION__);
     if (mCameraSensor[mCameraId]->fd >= 0) {
-        LOGE("%s: camera is already opened", __FUNCTION__);
+        ALOGE("%s: camera is already opened", __FUNCTION__);
         return mCameraSensor[mCameraId]->fd;
     }
     const char *dev_name = mCameraSensor[mCameraId]->devName;
@@ -589,14 +589,14 @@ int CameraDriver::openDevice()
     fd = v4l2_capture_open(dev_name);
 
     if (fd < 0) {
-        LOGE("V4L2: capture_open failed: %s", strerror(errno));
+        ALOGE("V4L2: capture_open failed: %s", strerror(errno));
         return -EFAULT;
     }
 
     // Query and check the capabilities
     struct v4l2_capability cap;
     if (v4l2_capture_querycap(fd, &cap) < 0) {
-        LOGE("V4L2: capture_querycap failed: %s", strerror(errno));
+        ALOGE("V4L2: capture_querycap failed: %s", strerror(errno));
         v4l2_capture_close(fd);
         return -EFAULT;
     }
@@ -611,12 +611,12 @@ void CameraDriver::closeDevice()
     LOG1("@%s", __FUNCTION__);
 
     if (mCameraSensor[mCameraId] == 0) {
-        LOGE("%s: Try to open non-existent camera", __FUNCTION__);
+        ALOGE("%s: Try to open non-existent camera", __FUNCTION__);
         return;
     }
 
     if (mCameraSensor[mCameraId]->fd < 0) {
-        LOGE("oh no. this should not be happening");
+        ALOGE("oh no. this should not be happening");
         return;
     }
 
@@ -638,7 +638,7 @@ status_t CameraDriver::allocateBuffer(int fd, int index)
     vbuf->memory = V4L2_MEMORY_USERPTR;
     ret = ioctl(fd, VIDIOC_QUERYBUF, vbuf);
     if (ret < 0) {
-        LOGE("VIDIOC_QUERYBUF failed: %s", strerror(errno));
+        ALOGE("VIDIOC_QUERYBUF failed: %s", strerror(errno));
         return UNKNOWN_ERROR;
     }
 
@@ -657,7 +657,7 @@ status_t CameraDriver::allocateBuffer(int fd, int index)
 status_t CameraDriver::allocateBuffers(int numBuffers)
 {
     if (mBufferPool.bufs) {
-        LOGE("fail to alloc. non-null buffs");
+        ALOGE("fail to alloc. non-null buffs");
         return UNKNOWN_ERROR;
     }
 
@@ -672,7 +672,7 @@ status_t CameraDriver::allocateBuffers(int numBuffers)
     ret = ioctl(fd, VIDIOC_REQBUFS, &reqBuf);
 
     if (ret < 0) {
-        LOGE("VIDIOC_REQBUFS(%d) returned: %d (%s)",
+        ALOGE("VIDIOC_REQBUFS(%d) returned: %d (%s)",
             numBuffers, ret, strerror(errno));
         return UNKNOWN_ERROR;
     }
@@ -712,7 +712,7 @@ status_t CameraDriver::freeBuffer(int index)
 status_t CameraDriver::freeBuffers()
 {
     if (!mBufferPool.bufs) {
-        LOGE("fail to free. null buffers");
+        ALOGE("fail to free. null buffers");
         return NO_ERROR; // This is okay, just print an error
     }
 
@@ -732,7 +732,7 @@ status_t CameraDriver::freeBuffers()
 
     if (ret < 0) {
         // Just print an error and continue with dealloc logic
-        LOGE("VIDIOC_REQBUFS returned: %d (%s)",
+        ALOGE("VIDIOC_REQBUFS returned: %d (%s)",
                 ret, strerror(errno));
     }
 
@@ -756,7 +756,7 @@ status_t CameraDriver::queueBuffer(CameraBuffer *buff, bool init)
 
     ret = ioctl(fd, VIDIOC_QBUF, vbuff);
     if (ret < 0) {
-        LOGE("VIDIOC_QBUF index %d failed: %s",
+        ALOGE("VIDIOC_QBUF index %d failed: %s",
              buff->id, strerror(errno));
         return UNKNOWN_ERROR;
     }
@@ -777,7 +777,7 @@ status_t CameraDriver::dequeueBuffer(CameraBuffer *buff, nsecs_t *timestamp)
 
     ret = ioctl(fd, VIDIOC_DQBUF, &vbuff);
     if (ret < 0) {
-        LOGE("error dequeuing buffers");
+        ALOGE("error dequeuing buffers");
         return UNKNOWN_ERROR;
     }
 
@@ -917,16 +917,16 @@ status_t CameraDriver::setVideoFrameSize(int width, int height)
     }
 
     if (mMode == MODE_VIDEO) {
-        LOGE("Reconfiguration in video mode unsupported. Stop the driver first");
+        ALOGE("Reconfiguration in video mode unsupported. Stop the driver first");
         return INVALID_OPERATION;
     }
 
     if (width > mConfig.recording.maxWidth || width <= 0) {
-        LOGE("invalid recording width %d. override to %d", width, mConfig.recording.maxWidth);
+        ALOGE("invalid recording width %d. override to %d", width, mConfig.recording.maxWidth);
         width = mConfig.recording.maxWidth;
     }
     if (height > mConfig.recording.maxHeight || height <= 0) {
-        LOGE("invalid recording height %d. override to %d", height, mConfig.recording.maxHeight);
+        ALOGE("invalid recording height %d. override to %d", height, mConfig.recording.maxHeight);
         height = mConfig.recording.maxHeight;
     }
     mConfig.recording.width = width;
@@ -968,7 +968,7 @@ status_t CameraDriver::setZoom(int zoom)
 
     int ret = set_zoom(mCameraSensor[mCameraId]->fd, zoom);
     if (ret < 0) {
-        LOGE("Error setting zoom to %d", zoom);
+        ALOGE("Error setting zoom to %d", zoom);
         return UNKNOWN_ERROR;
     }
     mConfig.zoom = zoom;
@@ -1071,7 +1071,7 @@ int CameraDriver::set_attribute (int fd, int attribute_num,
     if (ioctl(fd, VIDIOC_S_EXT_CTRLS, &controls) == 0)
         return 0;
 
-    LOGE("Failed to set value %d for control %s (%d) on fd '%d', %s",
+    ALOGE("Failed to set value %d for control %s (%d) on fd '%d', %s",
         value, name, attribute_num, fd, strerror(errno));
     return -1;
 }
@@ -1085,7 +1085,7 @@ int CameraDriver::xioctl(int fd, int request, void *arg)
     } while (-1 == ret && EINTR == errno);
 
     if (ret < 0)
-        LOGW ("Request %d failed: %s", request, strerror(errno));
+        ALOGW ("Request %d failed: %s", request, strerror(errno));
 
     return ret;
 }
@@ -1108,7 +1108,7 @@ int CameraDriver::v4l2_capture_g_framerate(int fd, float *framerate, int width, 
 
     ret = ioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frm_interval);
     if (ret < 0) {
-        LOGW("ioctl failed: %s", strerror(errno));
+        ALOGW("ioctl failed: %s", strerror(errno));
         return ret;
     }
 
@@ -1130,7 +1130,7 @@ int CameraDriver::v4l2_capture_s_format(int fd, int w, int h)
     LOG1("VIDIOC_G_FMT");
     ret = ioctl (fd,  VIDIOC_G_FMT, &v4l2_fmt);
     if (ret < 0) {
-        LOGE("VIDIOC_G_FMT failed: %s", strerror(errno));
+        ALOGE("VIDIOC_G_FMT failed: %s", strerror(errno));
         return -1;
     }
 
@@ -1145,7 +1145,7 @@ int CameraDriver::v4l2_capture_s_format(int fd, int w, int h)
                 v4l2_fmt.fmt.pix.field);
     ret = ioctl(fd, VIDIOC_S_FMT, &v4l2_fmt);
     if (ret < 0) {
-        LOGE("VIDIOC_S_FMT failed: %s", strerror(errno));
+        ALOGE("VIDIOC_S_FMT failed: %s", strerror(errno));
         return -1;
     }
     return 0;
@@ -1161,20 +1161,20 @@ status_t CameraDriver::v4l2_capture_open(const char *devName)
     LOG1("---Open video device %s---", devName);
 
     if (stat (devName, &st) == -1) {
-        LOGE("Error stat video device %s: %s",
+        ALOGE("Error stat video device %s: %s",
                 devName, strerror(errno));
         return -1;
     }
 
     if (!S_ISCHR (st.st_mode)) {
-        LOGE("%s is not a device", devName);
+        ALOGE("%s is not a device", devName);
         return -1;
     }
 
     fd = open(devName, O_RDWR);
 
     if (fd <= 0) {
-        LOGE("Error opening video device %s: %s",
+        ALOGE("Error opening video device %s: %s",
                 devName, strerror(errno));
         return -1;
     }
@@ -1188,12 +1188,12 @@ status_t CameraDriver::v4l2_capture_close(int fd)
     /* close video device */
     LOG1("----close device ---");
     if (fd < 0) {
-        LOGW("Device not opened!");
+        ALOGW("Device not opened!");
         return INVALID_OPERATION;
     }
 
     if (close(fd) < 0) {
-        LOGE("Close video device failed: %s", strerror(errno));
+        ALOGE("Close video device failed: %s", strerror(errno));
         return UNKNOWN_ERROR;
     }
     return NO_ERROR;
@@ -1207,17 +1207,17 @@ status_t CameraDriver::v4l2_capture_querycap(int fd, struct v4l2_capability *cap
     ret = ioctl(fd, VIDIOC_QUERYCAP, cap);
 
     if (ret < 0) {
-        LOGE("VIDIOC_QUERYCAP returned: %d (%s)", ret, strerror(errno));
+        ALOGE("VIDIOC_QUERYCAP returned: %d (%s)", ret, strerror(errno));
         return ret;
     }
 
     if (!(cap->capabilities & V4L2_CAP_VIDEO_CAPTURE)) {
-        LOGE("No capture devices");
+        ALOGE("No capture devices");
         return -1;
     }
 
     if (!(cap->capabilities & V4L2_CAP_STREAMING)) {
-        LOGE("Is not a video streaming device");
+        ALOGE("Is not a video streaming device");
         return -1;
     }
 
@@ -1239,7 +1239,7 @@ int CameraDriver::set_capture_mode(Mode deviceMode)
     parm.parm.capture.capturemode = deviceMode;
     LOG1("%s !! camID %d fd %d", __FUNCTION__, mCameraId, mCameraSensor[mCameraId]->fd);
     if (ioctl(mCameraSensor[mCameraId]->fd, VIDIOC_S_PARM, &parm) < 0) {
-        LOGE("error %s", strerror(errno));
+        ALOGE("error %s", strerror(errno));
         return -1;
     }
 
@@ -1262,7 +1262,7 @@ int CameraDriver::v4l2_capture_try_format(int fd, int *w, int *h)
 
     ret = ioctl(fd, VIDIOC_TRY_FMT, &v4l2_fmt);
     if (ret < 0) {
-        LOGE("VIDIOC_TRY_FMT returned: %d (%s)", ret, strerror(errno));
+        ALOGE("VIDIOC_TRY_FMT returned: %d (%s)", ret, strerror(errno));
         return -1;
     }
 
@@ -1405,19 +1405,19 @@ int CameraDriver::enumerateCameras(){
     // get total number of cameras
     snprintf(propKey, sizeof(propKey), "%s.%s", PROP_PREFIX, PROP_NUMBER);
     if (0 == property_get(propKey, propVal, 0)) {
-        LOGE("%s: Failed to get number of cameras from prop.", __FUNCTION__);
+        ALOGE("%s: Failed to get number of cameras from prop.", __FUNCTION__);
         goto abort;
     }
 
     claimed = atoi(propVal);
 
     if (claimed < 0) {
-        LOGE("%s: Invalid Claimed (%d) camera(s), abort.", __FUNCTION__, claimed);
+        ALOGE("%s: Invalid Claimed (%d) camera(s), abort.", __FUNCTION__, claimed);
         goto abort;
     }
 
     if (claimed > MAX_CAMERAS) {
-        LOGD("%s: Claimed (%d) camera(s), but we only support up to (%d) camera(s)",
+        ALOGD("%s: Claimed (%d) camera(s), but we only support up to (%d) camera(s)",
                 __FUNCTION__, claimed, MAX_CAMERAS);
         claimed = MAX_CAMERAS;
     }
@@ -1425,21 +1425,21 @@ int CameraDriver::enumerateCameras(){
     for (int i = 0; i < claimed; i++) {
         newDev = new CameraSensor;
         if (!newDev) {
-            LOGE("%s: No mem for enumeration, abort.", __FUNCTION__);
+            ALOGE("%s: No mem for enumeration, abort.", __FUNCTION__);
             goto abort;
         }
         memset(newDev, 0, sizeof(struct CameraSensor));
 
         newDev->devName = new char[PROPERTY_VALUE_MAX];
         if (!newDev->devName) {
-            LOGE("%s: No mem for dev name, abort.", __FUNCTION__);
+            ALOGE("%s: No mem for dev name, abort.", __FUNCTION__);
             goto abort;
         }
 
         // each camera device must have a name
         snprintf(propKey, sizeof(propKey), "%s.%d.%s", PROP_PREFIX, i, PROP_DEVNAME);
         if (0 == property_get(propKey, newDev->devName, 0)) {
-            LOGE("%s: Failed to get name of camera %d from prop, abort.",
+            ALOGE("%s: Failed to get name of camera %d from prop, abort.",
                     __FUNCTION__, i);
             goto abort;
         }
@@ -1447,7 +1447,7 @@ int CameraDriver::enumerateCameras(){
         // Setup facing info
         snprintf(propKey, sizeof(propKey), "%s.%d.%s", PROP_PREFIX, i, PROP_FACING);
         if (0 == property_get(propKey, propVal, 0)) {
-            LOGE("%s: Failed to get facing of camera %d from prop, abort.",
+            ALOGE("%s: Failed to get facing of camera %d from prop, abort.",
                     __FUNCTION__, i);
             goto abort;
         }
@@ -1458,7 +1458,7 @@ int CameraDriver::enumerateCameras(){
             newDev->info.facing = CAMERA_FACING_BACK;
         }
         else {
-            LOGE("%s: Invalid facing of camera %d from prop, abort.",
+            ALOGE("%s: Invalid facing of camera %d from prop, abort.",
                     __FUNCTION__, i);
             goto abort;
         }
@@ -1469,7 +1469,7 @@ int CameraDriver::enumerateCameras(){
 
         if (0 == property_get(propKey, propVal, 0) ||
                 (newDev->info.orientation = atoi(propVal)) < 0) {
-            LOGE("%s: Invalid orientation of camera %d from prop, abort.",
+            ALOGE("%s: Invalid orientation of camera %d from prop, abort.",
                     __FUNCTION__, i);
             goto abort;
         }
@@ -1477,7 +1477,7 @@ int CameraDriver::enumerateCameras(){
         newDev->fd = -1;
 
         //It seems we get all info of a new camera
-        LOGD("%s: Detected camera (%d) %s %s %d",
+        ALOGD("%s: Detected camera (%d) %s %s %d",
                 __FUNCTION__, i, newDev->devName,
                 newDev->info.facing == CAMERA_FACING_FRONT ? "front" : "back",
                 newDev->info.orientation);
@@ -1488,7 +1488,7 @@ int CameraDriver::enumerateCameras(){
     return numCameras;
 
 abort:
-    LOGE("%s: Terminate camera enumeration !!", __FUNCTION__);
+    ALOGE("%s: Terminate camera enumeration !!", __FUNCTION__);
     cleanupCameras();
     //something wrong, further cleaning job
     if (newDev) {
@@ -1540,7 +1540,7 @@ status_t CameraDriver::cancelAutoFocus()
 status_t CameraDriver::setEffect(Effect effect)
 {
     if (effect != EFFECT_NONE) {
-        LOGE("invalid color effect");
+        ALOGE("invalid color effect");
         return BAD_VALUE;
     }
 
@@ -1552,7 +1552,7 @@ status_t CameraDriver::setEffect(Effect effect)
 status_t CameraDriver::setFlashMode(FlashMode flashMode)
 {
     if (flashMode != FLASH_MODE_OFF) {
-        LOGE("invalid flash mode");
+        ALOGE("invalid flash mode");
         return BAD_VALUE;
     }
 
@@ -1564,7 +1564,7 @@ status_t CameraDriver::setFlashMode(FlashMode flashMode)
 status_t CameraDriver::setSceneMode(SceneMode sceneMode)
 {
     if (sceneMode != SCENE_MODE_AUTO) {
-        LOGE("invalid scene mode");
+        ALOGE("invalid scene mode");
         return BAD_VALUE;
     }
 
@@ -1576,12 +1576,12 @@ status_t CameraDriver::setSceneMode(SceneMode sceneMode)
 status_t CameraDriver::setFocusMode(FocusMode focusMode, CameraWindow *windows, int numWindows)
 {
     if (focusMode != FOCUS_MODE_FIXED) {
-        LOGE("invalid focus mode");
+        ALOGE("invalid focus mode");
         return BAD_VALUE;
     }
 
     if (windows != NULL || numWindows != 0) {
-        LOGE("focus windows not supported");
+        ALOGE("focus windows not supported");
         return INVALID_OPERATION;
     }
 
@@ -1593,7 +1593,7 @@ status_t CameraDriver::setFocusMode(FocusMode focusMode, CameraWindow *windows, 
 status_t CameraDriver::setWhiteBalanceMode(WhiteBalanceMode wbMode)
 {
     if (wbMode != WHITE_BALANCE_AUTO) {
-        LOGE("invalid white balance");
+        ALOGE("invalid white balance");
         return BAD_VALUE;
     }
 
@@ -1604,19 +1604,19 @@ status_t CameraDriver::setWhiteBalanceMode(WhiteBalanceMode wbMode)
 
 status_t CameraDriver::setAeLock(bool lock)
 {
-    LOGE("ae lock not supported");
+    ALOGE("ae lock not supported");
     return INVALID_OPERATION;
 }
 
 status_t CameraDriver::setAwbLock(bool lock)
 {
-    LOGE("awb lock not supported");
+    ALOGE("awb lock not supported");
     return INVALID_OPERATION;
 }
 
 status_t CameraDriver::setMeteringAreas(CameraWindow *windows, int numWindows)
 {
-    LOGE("metering not supported");
+    ALOGE("metering not supported");
     return INVALID_OPERATION;
 }
 

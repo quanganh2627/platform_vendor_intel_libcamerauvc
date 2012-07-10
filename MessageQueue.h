@@ -53,7 +53,7 @@ public:
             // If for some reason a thread is sent a message after
             // the thread has exited then there is a race condition
             // or design issue.
-            LOGE("Camera_MessageQueue error: %s queue should be empty. Find the bug.", mName);
+            ALOGE("Camera_MessageQueue error: %s queue should be empty. Find the bug.", mName);
         }
 
         if (mNumReply > 0) {
@@ -75,7 +75,7 @@ public:
 
         // someone is misusing the API. replies have not been enabled
         if (replyId != -1 && mNumReply == 0) {
-            LOGE("Camera_MessageQueue error: %s replies not enabled\n", mName);
+            ALOGE("Camera_MessageQueue error: %s replies not enabled\n", mName);
             return BAD_VALUE;
         }
 
@@ -95,7 +95,7 @@ public:
                 // wait() should never complete without a new status having
                 // been set, but for diagnostic purposes let's check it.
                 if (mReplyStatus[replyId] == WOULD_BLOCK) {
-                    LOGE("Camera_MessageQueue - woke with WOULD_BLOCK\n");
+                    ALOGE("Camera_MessageQueue - woke with WOULD_BLOCK\n");
                 }
             }
             status = mReplyStatus[replyId];
@@ -145,7 +145,7 @@ public:
             // wait() should never complete without a message being
             // available, but for diagnostic purposes let's check it.
             if (isEmpty()) {
-                LOGE("Camera_MessageQueue - woke with mCount == 0\n");
+                ALOGE("Camera_MessageQueue - woke with mCount == 0\n");
             }
         }
 

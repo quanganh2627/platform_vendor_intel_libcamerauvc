@@ -40,19 +40,19 @@ OlaFaceDetect::OlaFaceDetect(IFaceDetectionListener *pListener) :
 
 OlaFaceDetect::~OlaFaceDetect()
 {
-    LOGV("%s: Destroy the OlaFaceDetec\n", __func__);
+    ALOGV("%s: Destroy the OlaFaceDetec\n", __func__);
 
     mbRunning = false;
     if (mFaceDetectionStruct)
         CameraFaceDetection_Destroy(&mFaceDetectionStruct);
     mFaceDetectionStruct = 0;
 
-    LOGV("%s: Destroy the OlaFaceDetec DONE.\n", __func__);
+    ALOGV("%s: Destroy the OlaFaceDetec DONE.\n", __func__);
 }
 
 void OlaFaceDetect::start()
 {
-    LOGV("%s: START Face Detection mFaceDetectionStruct 0x%p\n", __func__, mFaceDetectionStruct);
+    ALOGV("%s: START Face Detection mFaceDetectionStruct 0x%p\n", __func__, mFaceDetectionStruct);
     int ret = 0;
 
     // Since clients can stop the thread asynchronously with stop(wait=false)
@@ -66,7 +66,7 @@ void OlaFaceDetect::start()
             mbRunning = true;
             run();
         }
-        LOGV("%s: Ola Face Detection struct Created. Ret: %d struct: 0x%p", __func__,ret, mFaceDetectionStruct);
+        ALOGV("%s: Ola Face Detection struct Created. Ret: %d struct: 0x%p", __func__,ret, mFaceDetectionStruct);
     }else{
         mbRunning = true;
         run();//restart thread
@@ -75,7 +75,7 @@ void OlaFaceDetect::start()
 
 void OlaFaceDetect::stop(bool wait)
 {
-    LOGV("%s: STOP Face DEtection mFaceDetectionStruct 0x%p\n", __func__, mFaceDetectionStruct);
+    ALOGV("%s: STOP Face DEtection mFaceDetectionStruct 0x%p\n", __func__, mFaceDetectionStruct);
     Message msg;
     msg.id = MESSAGE_ID_EXIT;
     mMessageQueue.remove(MESSAGE_ID_FRAME); // flush all buffers
@@ -88,7 +88,7 @@ void OlaFaceDetect::stop(bool wait)
 
 status_t OlaFaceDetect::handleExit()
 {
-    LOGV("%s: Stop Face Detection\n", __func__);
+    ALOGV("%s: Stop Face Detection\n", __func__);
     int ret = 0;
     mbRunning = false;
     return NO_ERROR;
@@ -96,7 +96,7 @@ status_t OlaFaceDetect::handleExit()
 
 int OlaFaceDetect::sendFrame(CameraBuffer *img, int width, int height)
 {
-    LOGV("%s: sendFrame, data =%p, width=%d height=%d\n", __func__, img->buff->data, width, height);
+    ALOGV("%s: sendFrame, data =%p, width=%d height=%d\n", __func__, img->buff->data, width, height);
     Message msg;
     msg.id = MESSAGE_ID_FRAME;
     msg.data.frame.img = *img;
@@ -115,9 +115,9 @@ bool OlaFaceDetect::threadLoop()
     Message msg;
     while(mbRunning)
     {
-        LOGV("getting message....");
+        ALOGV("getting message....");
         mMessageQueue.receive(&msg);
-        LOGV("operation message ID = %d", msg.id);
+        ALOGV("operation message ID = %d", msg.id);
         switch (msg.id)
         {
         case MESSAGE_ID_FRAME:
@@ -131,38 +131,38 @@ bool OlaFaceDetect::threadLoop()
             break;
         }
         if (status != NO_ERROR) {
-            LOGE("operation failed, status = %d", status);
+            ALOGE("operation failed, status = %d", status);
         }
     }
     return false;
 }
 status_t OlaFaceDetect::handleFrame(MessageFrame frame)
 {
-    LOGV("%s: Face detection executing\n", __func__);
+    ALOGV("%s: Face detection executing\n", __func__);
     if (mFaceDetectionStruct == 0) return INVALID_OPERATION;
 
-    LOGV("%s: data =%p, width=%d height=%d\n", __func__, frame.img.buff->data, frame.width, frame.height);
+    ALOGV("%s: data =%p, width=%d height=%d\n", __func__, frame.img.buff->data, frame.width, frame.height);
     int faces = CameraFaceDetection_FindFace(mFaceDetectionStruct,
             (unsigned char*) (frame.img.buff->data),
             frame.width, frame.height);
-    LOGV("%s CameraFaceDetection_FindFace faces %d, %d\n", __func__, faces, mFaceDetectionStruct->numDetected);
+    ALOGV("%s CameraFaceDetection_FindFace faces %d, %d\n", __func__, faces, mFaceDetectionStruct->numDetected);
 
     camera_frame_metadata_t face_metadata;
     face_metadata.number_of_faces = mFaceDetectionStruct->numDetected;
     face_metadata.faces = (camera_face_t *)mFaceDetectionStruct->detectedFaces;
     for (int i=0; i<face_metadata.number_of_faces;i++) {
         camera_face_t& face =face_metadata.faces[i];
-        LOGV("face id=%d, score =%d", face.id, face.score);
-        LOGV("rect = (%d, %d, %d, %d)",face.rect[0],face.rect[1],
+        ALOGV("face id=%d, score =%d", face.id, face.score);
+        ALOGV("rect = (%d, %d, %d, %d)",face.rect[0],face.rect[1],
                 face.rect[2],face.rect[3]);
-        LOGV("mouth: (%d, %d)",face.mouth[0], face.mouth[1]);
-        LOGV("left eye: (%d, %d)", face.left_eye[0], face.left_eye[1]);
-        LOGV("right eye: (%d, %d)", face.right_eye[0], face.right_eye[1]);
+        ALOGV("mouth: (%d, %d)",face.mouth[0], face.mouth[1]);
+        ALOGV("left eye: (%d, %d)", face.left_eye[0], face.left_eye[1]);
+        ALOGV("right eye: (%d, %d)", face.right_eye[0], face.right_eye[1]);
     }
     //blocking call
-    LOGV("%s calling listener", __func__);
+    ALOGV("%s calling listener", __func__);
     mpListener->facesDetected(face_metadata, &frame.img);
-    LOGV("%s returned from listener", __func__);
+    ALOGV("%s returned from listener", __func__);
 
     return NO_ERROR;
 }

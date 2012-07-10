@@ -73,7 +73,7 @@ status_t PictureThread::encodeToJpeg(CameraBuffer *mainBuf, CameraBuffer *thumbB
         mCallbacks->allocateMemory(&mExifBuf, MAX_EXIF_SIZE);
     }
     if (mOutBuf.buff == NULL || mOutBuf.buff->data == NULL) {
-        LOGE("Could not allocate memory for temp buffer!");
+        ALOGE("Could not allocate memory for temp buffer!");
         return NO_MEMORY;
     }
     LOG1("Out buffer: @%p (%d bytes)", mOutBuf.buff->data, mOutBuf.buff->size);
@@ -106,7 +106,7 @@ status_t PictureThread::encodeToJpeg(CameraBuffer *mainBuf, CameraBuffer *thumbB
             encoder.setThumbData(outBuf.buf, size);
         } else {
             // This is not critical, we can continue with main picture image
-            LOGE("Could not encode thumbnail stream!");
+            ALOGE("Could not encode thumbnail stream!");
         }
     } else {
         LOG1("Skipping thumbnail");
@@ -119,7 +119,7 @@ status_t PictureThread::encodeToJpeg(CameraBuffer *mainBuf, CameraBuffer *thumbB
     totalSize += sizeof(JPEG_MARKER_SOI);
     currentPtr += sizeof(JPEG_MARKER_SOI);
     if (encoder.makeExif(currentPtr, &mConfig.exif, &exifSize, false) != JPG_SUCCESS)
-        LOGE("Error making EXIF");
+        ALOGE("Error making EXIF");
     currentPtr += exifSize;
     totalSize += exifSize;
     // Copy the EOI marker
@@ -152,14 +152,14 @@ status_t PictureThread::encodeToJpeg(CameraBuffer *mainBuf, CameraBuffer *thumbB
         // We will skip SOI marker from final file
         totalSize += (mainSize - sizeof(JPEG_MARKER_SOI));
     } else {
-        LOGE("Could not encode picture stream!");
+        ALOGE("Could not encode picture stream!");
         status = UNKNOWN_ERROR;
     }
 
     if (status == NO_ERROR) {
         mCallbacks->allocateMemory(destBuf, totalSize);
         if (destBuf->buff == NULL) {
-            LOGE("No memory for final JPEG file!");
+            ALOGE("No memory for final JPEG file!");
             status = NO_MEMORY;
         }
     }
@@ -195,7 +195,7 @@ void PictureThread::getDefaultParameters(CameraParameters *params)
 {
     LOG1("@%s", __FUNCTION__);
     if (!params) {
-        LOGE("null params");
+        ALOGE("null params");
         return;
     }
 
@@ -239,7 +239,7 @@ status_t PictureThread::handleMessageEncode(MessageEncode *msg)
     if (mConfig.picture.width == 0 ||
         mConfig.picture.height == 0 ||
         mConfig.picture.format == 0) {
-        LOGE("Picture information not set yet!");
+        ALOGE("Picture information not set yet!");
         return UNKNOWN_ERROR;
     }
 
@@ -248,7 +248,7 @@ status_t PictureThread::handleMessageEncode(MessageEncode *msg)
     if ((status = encodeToJpeg(&msg->snaphotBuf, postviewBuf, &jpegBuf)) == NO_ERROR) {
         mCallbacks->compressedFrameDone(&jpegBuf);
     } else {
-        LOGE("Error generating JPEG image!");
+        ALOGE("Error generating JPEG image!");
         if (jpegBuf.buff != NULL && jpegBuf.buff->data != NULL) {
             LOG1("Releasing jpegBuf @%p", jpegBuf.buff->data);
             jpegBuf.buff->release(jpegBuf.buff);
