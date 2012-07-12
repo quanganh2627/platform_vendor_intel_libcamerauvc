@@ -109,7 +109,6 @@ status_t PreviewThread::handleMessagePreview(MessagePreview *msg)
         buffer_handle_t *buf;
         int err;
         int stride;
-        unsigned char *tmpRGBA;
         if ((err = mPreviewWindow->dequeue_buffer(mPreviewWindow, &buf, &stride)) != 0) {
             ALOGE("Surface::dequeueBuffer returned error %d", err);
         } else {
@@ -129,25 +128,15 @@ status_t PreviewThread::handleMessagePreview(MessagePreview *msg)
                 status = NO_MEMORY;
                 goto exit;
             }
-            //temporary solution for RGBA8888
-            tmpRGBA = (unsigned char *)malloc(mPreviewWidth * mPreviewHeight * 4);
-            if (!tmpRGBA) {
-                status = NO_MEMORY;
-                goto exit;
-            }
+
             LOG2("Preview Color Conversion to RGBA, stride: %d height: %d", stride, mPreviewHeight);
             colorConvert(V4L2_PIX_FMT_YUYV, V4L2_PIX_FMT_RGB32,
                     mPreviewWidth, mPreviewHeight,
-                    msg->inputBuff.buff->data, tmpRGBA);
-            memcpy(dst,
-                    tmpRGBA,
-                    stride*mPreviewHeight*4
-                    );
+                    msg->inputBuff.buff->data, dst);
             if ((err = mPreviewWindow->enqueue_buffer(mPreviewWindow, buf)) != 0) {
                 ALOGE("Surface::queueBuffer returned error %d", err);
             }
             mapper.unlock(*buf);
-            free(tmpRGBA);
         }
         buf = NULL;
     }
