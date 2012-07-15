@@ -125,9 +125,11 @@ private:
     bool mThreadRunning;
     Callbacks *mCallbacks;
     JpegCompressor compressor;
-    CameraBuffer mExifBuf;
-    CameraBuffer mOutBuf;
-
+    JpegCompressor::InputBuffer mEncoderInBuf;
+    JpegCompressor::OutputBuffer mEncoderOutBuf;
+    unsigned char* mOutData; //temporary buffer to hold output data
+    int mMaxOutDataSize;
+    unsigned char* mExifBuf;//temporary buffer to hold exif data
     Config mConfig;
 
 // public data

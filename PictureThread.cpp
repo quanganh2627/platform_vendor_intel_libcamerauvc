@@ -32,20 +32,20 @@ PictureThread::PictureThread() :
     ,mMessageQueue("PictureThread", MESSAGE_ID_MAX)
     ,mThreadRunning(false)
     ,mCallbacks(Callbacks::getInstance())
+    ,mOutData(NULL)
+    ,mExifBuf(NULL)
 {
     LOG1("@%s", __FUNCTION__);
-    memset(&mOutBuf, 0, sizeof(mOutBuf));
-    memset(&mExifBuf, 0, sizeof(mExifBuf));
 }
 
 PictureThread::~PictureThread()
 {
     LOG1("@%s", __FUNCTION__);
-    if (mOutBuf.buff != NULL) {
-        mOutBuf.buff->release(mOutBuf.buff);
+    if (mOutData != NULL) {
+        delete[] mOutData;
     }
-    if (mExifBuf.buff != NULL) {
-        mExifBuf.buff->release(mExifBuf.buff);
+    if (mExifBuf != NULL) {
+        delete[] mExifBuf;
     }
 }
 
@@ -60,28 +60,10 @@ status_t PictureThread::encodeToJpeg(CameraBuffer *mainBuf, CameraBuffer *thumbB
 {
     LOG1("@%s", __FUNCTION__);
     status_t status = NO_ERROR;
-    JpegCompressor::InputBuffer inBuf;
-    JpegCompressor::OutputBuffer outBuf;
+
     nsecs_t startTime = systemTime();
     nsecs_t endTime;
 
-    if (mOutBuf.buff == NULL || mOutBuf.buff->data == NULL || mOutBuf.buff->size <= 0) {
-        int bufferSize = (mConfig.picture.width * mConfig.picture.height * 2);
-        mCallbacks->allocateMemory(&mOutBuf, bufferSize);
-    }
-    if (mOutBuf.buff == NULL || mOutBuf.buff->data == NULL) {
-        ALOGE("Could not allocate memory for temp buffer!");
-        return NO_MEMORY;
-    }
-    if (mExifBuf.buff == NULL || mExifBuf.buff->data == NULL || mExifBuf.buff->size <= 0) {
-        mCallbacks->allocateMemory(&mExifBuf, MAX_EXIF_SIZE);
-    }
-    if (mExifBuf.buff == NULL || mExifBuf.buff->data == NULL) {
-        ALOGE("Could not allocate memory for temp exif buffer!");
-        return NO_MEMORY;
-    }
-    LOG1("Out buffer: @%p (%d bytes)", mOutBuf.buff->data, mOutBuf.buff->size);
-    LOG1("Exif buffer: @%p (%d bytes)", mExifBuf.buff->data, mExifBuf.buff->size);
     // Convert and encode the thumbnail, if present and EXIF maker is initialized
 
     if (mConfig.exif.enableThumb) {
@@ -89,25 +71,25 @@ status_t PictureThread::encodeToJpeg(CameraBuffer *mainBuf, CameraBuffer *thumbB
         LOG1("Encoding thumbnail");
 
         // setup the JpegCompressor input and output buffers
-        inBuf.clear();
-        inBuf.buf = (unsigned char*)thumbBuf->buff->data;
-        inBuf.width = mConfig.thumbnail.width;
-        inBuf.height = mConfig.thumbnail.height;
-        inBuf.format = mConfig.thumbnail.format;
-        inBuf.size = frameSize(mConfig.thumbnail.format,
+        mEncoderInBuf.clear();
+        mEncoderInBuf.buf = (unsigned char*)thumbBuf->buff->data;
+        mEncoderInBuf.width = mConfig.thumbnail.width;
+        mEncoderInBuf.height = mConfig.thumbnail.height;
+        mEncoderInBuf.format = mConfig.thumbnail.format;
+        mEncoderInBuf.size = frameSize(mConfig.thumbnail.format,
                 mConfig.thumbnail.width,
                 mConfig.thumbnail.height);
-        outBuf.clear();
-        outBuf.buf = (unsigned char*)mOutBuf.buff->data;
-        outBuf.width = mConfig.thumbnail.width;
-        outBuf.height = mConfig.thumbnail.height;
-        outBuf.quality = mConfig.thumbnail.quality;
-        outBuf.size = mOutBuf.buff->size;
+        mEncoderOutBuf.clear();
+        mEncoderOutBuf.buf = mOutData;
+        mEncoderOutBuf.width = mConfig.thumbnail.width;
+        mEncoderOutBuf.height = mConfig.thumbnail.height;
+        mEncoderOutBuf.quality = mConfig.thumbnail.quality;
+        mEncoderOutBuf.size = mMaxOutDataSize;
         endTime = systemTime();
-        int size = compressor.encode(inBuf, outBuf);
+        int size = compressor.encode(mEncoderInBuf, mEncoderOutBuf);
         LOG1("Thumbnail JPEG size: %d (time to encode: %ums)", size, (unsigned)((systemTime() - endTime) / 1000000));
         if (size > 0) {
-            encoder.setThumbData(outBuf.buf, size);
+            encoder.setThumbData(mEncoderOutBuf.buf, size);
         } else {
             // This is not critical, we can continue with main picture image
             ALOGE("Could not encode thumbnail stream!");
@@ -118,7 +100,7 @@ status_t PictureThread::encodeToJpeg(CameraBuffer *mainBuf, CameraBuffer *thumbB
     int totalSize = 0;
     unsigned int exifSize = 0;
     // Copy the SOI marker
-    unsigned char* currentPtr = (unsigned char*)mExifBuf.buff->data;
+    unsigned char* currentPtr = mExifBuf;
     memcpy(currentPtr, JPEG_MARKER_SOI, sizeof(JPEG_MARKER_SOI));
     totalSize += sizeof(JPEG_MARKER_SOI);
     currentPtr += sizeof(JPEG_MARKER_SOI);
@@ -134,23 +116,23 @@ status_t PictureThread::encodeToJpeg(CameraBuffer *mainBuf, CameraBuffer *thumbB
 
     // Convert and encode the main picture image
     // setup the JpegCompressor input and output buffers
-    inBuf.clear();
-    inBuf.buf = (unsigned char *) mainBuf->buff->data;
+    mEncoderInBuf.clear();
+    mEncoderInBuf.buf = (unsigned char *) mainBuf->buff->data;
 
-    inBuf.width = mConfig.picture.width;
-    inBuf.height = mConfig.picture.height;
-    inBuf.format = mConfig.picture.format;
-    inBuf.size = frameSize(mConfig.picture.format,
+    mEncoderInBuf.width = mConfig.picture.width;
+    mEncoderInBuf.height = mConfig.picture.height;
+    mEncoderInBuf.format = mConfig.picture.format;
+    mEncoderInBuf.size = frameSize(mConfig.picture.format,
             mConfig.picture.width,
             mConfig.picture.height);
-    outBuf.clear();
-    outBuf.buf = (unsigned char*)mOutBuf.buff->data;
-    outBuf.width = mConfig.picture.width;
-    outBuf.height = mConfig.picture.height;
-    outBuf.quality = mConfig.picture.quality;
-    outBuf.size = mOutBuf.buff->size;
+    mEncoderOutBuf.clear();
+    mEncoderOutBuf.buf = (unsigned char*)mOutData;
+    mEncoderOutBuf.width = mConfig.picture.width;
+    mEncoderOutBuf.height = mConfig.picture.height;
+    mEncoderOutBuf.quality = mConfig.picture.quality;
+    mEncoderOutBuf.size = mMaxOutDataSize;
     endTime = systemTime();
-    int mainSize = compressor.encode(inBuf, outBuf);
+    int mainSize = compressor.encode(mEncoderInBuf, mEncoderOutBuf);
     LOG1("Picture JPEG size: %d (time to encode: %ums)", mainSize, (unsigned)((systemTime() - endTime) / 1000000));
     if (mainSize > 0) {
         // We will skip SOI marker from final file
@@ -169,10 +151,10 @@ status_t PictureThread::encodeToJpeg(CameraBuffer *mainBuf, CameraBuffer *thumbB
     }
     if (status == NO_ERROR) {
         // Copy EXIF (it will also have the SOI and EOI markers
-        memcpy(destBuf->buff->data, mExifBuf.buff->data, exifSize);
+        memcpy(destBuf->buff->data, mExifBuf, exifSize);
         // Copy the final JPEG stream into the final destination buffer, but exclude the SOI marker
         char *copyTo = (char*)destBuf->buff->data + exifSize;
-        char *copyFrom = (char*)mOutBuf.buff->data + sizeof(JPEG_MARKER_SOI);
+        char *copyFrom = (char*)mOutData + sizeof(JPEG_MARKER_SOI);
         memcpy(copyTo, copyFrom, mainSize - sizeof(JPEG_MARKER_SOI));
     }
     LOG1("Total JPEG size: %d (time to encode: %ums)", totalSize, (unsigned)((systemTime() - startTime) / 1000000));
@@ -213,6 +195,15 @@ void PictureThread::getDefaultParameters(CameraParameters *params)
 void PictureThread::setConfig(Config *config)
 {
     mConfig = *config;
+    if(mOutData != NULL)
+        delete mOutData;
+    mMaxOutDataSize = (mConfig.picture.width * mConfig.picture.height * 2);
+    mOutData = new unsigned char[mMaxOutDataSize];
+
+
+    if (mExifBuf != NULL)
+        delete mExifBuf;
+    mExifBuf = new unsigned char[MAX_EXIF_SIZE];
 }
 
 status_t PictureThread::flushBuffers()
