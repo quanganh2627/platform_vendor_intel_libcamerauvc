@@ -69,11 +69,15 @@ status_t PictureThread::encodeToJpeg(CameraBuffer *mainBuf, CameraBuffer *thumbB
         int bufferSize = (mConfig.picture.width * mConfig.picture.height * 2);
         mCallbacks->allocateMemory(&mOutBuf, bufferSize);
     }
+    if (mOutBuf.buff == NULL || mOutBuf.buff->data == NULL) {
+        ALOGE("Could not allocate memory for temp buffer!");
+        return NO_MEMORY;
+    }
     if (mExifBuf.buff == NULL || mExifBuf.buff->data == NULL || mExifBuf.buff->size <= 0) {
         mCallbacks->allocateMemory(&mExifBuf, MAX_EXIF_SIZE);
     }
-    if (mOutBuf.buff == NULL || mOutBuf.buff->data == NULL) {
-        ALOGE("Could not allocate memory for temp buffer!");
+    if (mExifBuf.buff == NULL || mExifBuf.buff->data == NULL) {
+        ALOGE("Could not allocate memory for temp exif buffer!");
         return NO_MEMORY;
     }
     LOG1("Out buffer: @%p (%d bytes)", mOutBuf.buff->data, mOutBuf.buff->size);
@@ -249,12 +253,12 @@ status_t PictureThread::handleMessageEncode(MessageEncode *msg)
         mCallbacks->compressedFrameDone(&jpegBuf);
     } else {
         ALOGE("Error generating JPEG image!");
-        if (jpegBuf.buff != NULL && jpegBuf.buff->data != NULL) {
-            LOG1("Releasing jpegBuf @%p", jpegBuf.buff->data);
-            jpegBuf.buff->release(jpegBuf.buff);
-        }
     }
 
+    if (jpegBuf.buff != NULL && jpegBuf.buff->data != NULL) {
+        LOG1("Releasing jpegBuf @%p", jpegBuf.buff->data);
+        jpegBuf.buff->release(jpegBuf.buff);
+    }
     // When the encoding is done, send back the buffers to camera
 
     IBufferOwner *owner = msg->snaphotBuf.owner;
