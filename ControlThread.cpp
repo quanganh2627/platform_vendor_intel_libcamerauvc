@@ -917,7 +917,7 @@ status_t ControlThread::handleMessageTakePicture()
                 return status;
             }
         }
-        postviewBuffer.type == BUFFER_TYPE_THUMBNAIL;
+        postviewBuffer.type = BUFFER_TYPE_THUMBNAIL;
         postviewBuffer.owner = this;
 
         mCallbacks->shutterSound();
