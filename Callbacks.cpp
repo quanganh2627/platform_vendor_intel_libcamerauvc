@@ -81,8 +81,8 @@ void Callbacks::previewFrameDone(CameraBuffer *buff)
 {
     LOG2("@%s", __FUNCTION__);
     if ((mMessageFlags & CAMERA_MSG_PREVIEW_FRAME) && mDataCB != NULL) {
-        LOG2("Sending message: CAMERA_MSG_PREVIEW_FRAME, buff id = %d", buff->id);
-        mDataCB(CAMERA_MSG_PREVIEW_FRAME, buff->buff, 0, NULL, mUserToken);
+        LOG2("Sending message: CAMERA_MSG_PREVIEW_FRAME, buff id = %d", buff->getID());
+        mDataCB(CAMERA_MSG_PREVIEW_FRAME, buff->getCameraMem(), 0, NULL, mUserToken);
     }
 }
 
@@ -90,8 +90,8 @@ void Callbacks::videoFrameDone(CameraBuffer *buff, nsecs_t timestamp)
 {
     LOG2("@%s", __FUNCTION__);
     if ((mMessageFlags & CAMERA_MSG_VIDEO_FRAME) && mDataCBTimestamp != NULL) {
-        LOG2("Sending message: CAMERA_MSG_VIDEO_FRAME, buff id = %d", buff->id);
-        mDataCBTimestamp(timestamp, CAMERA_MSG_VIDEO_FRAME, buff->buff, 0, mUserToken);
+        LOG2("Sending message: CAMERA_MSG_VIDEO_FRAME, buff id = %d", buff->getID());
+        mDataCBTimestamp(timestamp, CAMERA_MSG_VIDEO_FRAME, buff->getCameraMem(), 0, mUserToken);
     }
 }
 
@@ -99,8 +99,8 @@ void Callbacks::compressedFrameDone(CameraBuffer *buff)
 {
     LOG1("@%s", __FUNCTION__);
     if ((mMessageFlags & CAMERA_MSG_COMPRESSED_IMAGE) && mDataCB != NULL) {
-        LOG1("Sending message: CAMERA_MSG_COMPRESSED_IMAGE, buff id = %d", buff->id);
-        mDataCB(CAMERA_MSG_COMPRESSED_IMAGE, buff->buff, 0, NULL, mUserToken);
+        LOG1("Sending message: CAMERA_MSG_COMPRESSED_IMAGE, buff id = %d", buff->getID());
+        mDataCB(CAMERA_MSG_COMPRESSED_IMAGE, buff->getCameraMem(), 0, NULL, mUserToken);
     }
 }
 
@@ -127,17 +127,15 @@ void Callbacks::facesDetected(camera_frame_metadata_t &face_metadata, CameraBuff
              &face_metadata,
              mUserToken);
     }
-    if (buff->owner != 0) {
-        buff->owner->returnBuffer(buff);
-    }
+    buff->doneProcessing(BUFFER_TYPE_PREVIEW);
 }
 
 void Callbacks::allocateMemory(CameraBuffer *buff, int size)
 {
     LOG1("@%s", __FUNCTION__);
-    buff->buff = NULL;
+    buff->releaseMemory();
     if (mGetMemoryCB != NULL)
-        buff->buff = mGetMemoryCB(-1, size, 1, mUserToken);
+        buff->setCameraMemory(mGetMemoryCB(-1, size, 1, mUserToken));
 }
 
 void Callbacks::autofocusDone(bool status)

@@ -20,7 +20,7 @@
 #include <camera.h>
 #include <linux/videodev2.h>
 #include <stdio.h>
-
+#include "LogHelper.h"
 
 
 //This file define the general configuration for the camera driver
@@ -33,28 +33,130 @@ namespace android {
 
 struct CameraBuffer;
 
-class IBufferOwner
-{
-public:
-    virtual void returnBuffer(CameraBuffer* buff1, CameraBuffer* buff2 = NULL) = 0;
-    virtual ~IBufferOwner(){};
-};
-
 enum BufferType {
     BUFFER_TYPE_PREVIEW,
     BUFFER_TYPE_VIDEO,
     BUFFER_TYPE_SNAPSHOT,
     BUFFER_TYPE_THUMBNAIL
 };
+class IBufferOwner
+{
+public:
+    virtual void returnBuffer(CameraBuffer* buff1, BufferType t) = 0;
+    virtual ~IBufferOwner(){};
+};
 
-struct CameraBuffer {
-    camera_memory_t *buff;
-    int id;                 // id for debugging data flow path
-    int driverPrivate;      // Private to the CameraDriver class.
+
+class CameraDriver;
+class ControlThread;
+class CameraBuffer {
+public:
+    CameraBuffer() :
+        mCamMem(0),
+        mID(-1),
+        mDriverPrivate(0),
+        mOwner(0),
+        mFormat(0),
+        mSize(-1)
+    {}
+
+    int getID() const
+    {
+        return mID;
+    }
+
+    void* getData()
+    {
+        if (mCamMem != 0)
+            return mCamMem->data;
+        else
+            return 0;
+    }
+
+    void releaseMemory()
+    {
+        if (mCamMem != 0)
+            mCamMem->release(mCamMem);
+        mCamMem = NULL;
+    }
+
+    // TODO: encapsulate memory allocation and data access
+    camera_memory_t* getCameraMem() const
+    {
+        return mCamMem;
+    }
+
+    void setCameraMemory(camera_memory_t* m)
+    {
+        if (mCamMem != 0)
+            releaseMemory();
+        mCamMem = m;
+    }
+
+    //TODO: use reader reference count
+    // readers should just decrement reader count
+    // buffer automatically returned to driver if
+    // reader count goes to zero
+    void doneProcessing(BufferType t)
+    {
+        if (mOwner != 0)
+            mOwner->returnBuffer(this, t);
+    }
+
+    void setOwner(IBufferOwner* o)
+    {
+        if (mOwner == 0)
+            mOwner = o;
+        else
+            ALOGE("taking ownership from previous owner is not allowed.");
+    }
+
+    void setFormat(int f)
+    {
+        mFormat = f;
+    }
+
+    int getFormat() const
+    {
+        return mFormat;
+    }
+
+
+private:
+    //not allowed to pass buffer by value
+    CameraBuffer(const CameraBuffer& other) :
+        mCamMem(other.mCamMem),
+        mID(other.mID),
+        mDriverPrivate(other.mDriverPrivate),
+        mOwner(other.mOwner),
+        mFormat(other.mFormat),
+        mSize(other.mSize)
+    {
+        ALOGW("CameraBuffers are not designed to pass by value.");
+    }
+    const CameraBuffer& operator=(const CameraBuffer& other)
+    {
+        ALOGW("CameraBuffers are not designed to pass by value.");
+        if (this != &other) {
+            this->mCamMem = other.mCamMem;
+            this->mDriverPrivate = other.mDriverPrivate;
+            this->mFormat = other.mFormat;
+            this->mID = other.mID;
+            this->mSize = other.mSize;
+            this->mOwner = other.mOwner;
+        }
+        return *this;
+    }
+    camera_memory_t *mCamMem;
+    int mID;                 // id for debugging data flow path
+    int mDriverPrivate;      // Private to the CameraDriver class.
                             // No other classes should touch this
-    BufferType type;
-    IBufferOwner* owner;    //owner who is responsible to enqueue back to CameraDriver
-    int format;
+    IBufferOwner* mOwner;    // owner who is responsible to enqueue back
+                            // to CameraDriver
+    int mFormat;
+    int mSize;
+    friend class CameraDriver;
+    friend class ControlThread;
 };
 
 struct CameraWindow {

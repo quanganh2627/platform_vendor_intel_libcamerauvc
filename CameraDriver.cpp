@@ -643,13 +643,13 @@ status_t CameraDriver::allocateBuffer(int fd, int index)
     }
 
     // allocate memory
-    camBuf->id = index;
+    camBuf->mID = index;
     mCallbacks->allocateMemory(camBuf, vbuf->length);
-    vbuf->m.userptr = (unsigned int) camBuf->buff->data;
+    vbuf->m.userptr = (unsigned int) camBuf->getData();
 
-    camBuf->format = mFormat;
+    camBuf->setFormat(mFormat);
 
-    LOG1("alloc mem addr=%p, index=%d size=%d", camBuf->buff->data, index, vbuf->length);
+    LOG1("alloc mem addr=%p, index=%d size=%d", camBuf->getData(), index, vbuf->length);
 
     return NO_ERROR;
 }
@@ -705,7 +705,7 @@ fail:
 status_t CameraDriver::freeBuffer(int index)
 {
     CameraBuffer *camBuf = &mBufferPool.bufs[index].camBuff;
-    camBuf->buff->release(camBuf->buff);
+    camBuf->releaseMemory();
     return NO_ERROR;
 }
 
@@ -746,18 +746,18 @@ status_t CameraDriver::queueBuffer(CameraBuffer *buff, bool init)
 {
     // see if we are in session (not initializing the driver with buffers)
     if (init == false) {
-        if (buff->driverPrivate != mSessionId)
+        if (buff->mDriverPrivate != mSessionId)
             return DEAD_OBJECT;
     }
 
     int ret;
     int fd = mCameraSensor[mCameraId]->fd;
-    struct v4l2_buffer *vbuff = &mBufferPool.bufs[buff->id].vBuff;
+    struct v4l2_buffer *vbuff = &mBufferPool.bufs[buff->getID()].vBuff;
 
     ret = ioctl(fd, VIDIOC_QBUF, vbuff);
     if (ret < 0) {
         ALOGE("VIDIOC_QBUF index %d failed: %s",
-             buff->id, strerror(errno));
+             buff->getID(), strerror(errno));
         return UNKNOWN_ERROR;
     }
 
@@ -766,7 +766,7 @@ status_t CameraDriver::queueBuffer(CameraBuffer *buff, bool init)
     return NO_ERROR;
 }
 
-status_t CameraDriver::dequeueBuffer(CameraBuffer *buff, nsecs_t *timestamp)
+status_t CameraDriver::dequeueBuffer(CameraBuffer **buff, nsecs_t *timestamp)
 {
     int ret;
     int fd = mCameraSensor[mCameraId]->fd;
@@ -782,9 +782,9 @@ status_t CameraDriver::dequeueBuffer(CameraBuffer *buff, nsecs_t *timestamp)
     }
 
     CameraBuffer *camBuff = &mBufferPool.bufs[vbuff.index].camBuff;
-    camBuff->id = vbuff.index;
-    camBuff->driverPrivate = mSessionId;
-    *buff = *camBuff;
+    camBuff->mID = vbuff.index;
+    camBuff->mDriverPrivate = mSessionId;
+    *buff = camBuff;
 
     if (timestamp)
         *timestamp = systemTime();
@@ -1272,7 +1272,7 @@ int CameraDriver::v4l2_capture_try_format(int fd, int *w, int *h)
     return 0;
 }
 
-status_t CameraDriver::getPreviewFrame(CameraBuffer *buff)
+status_t CameraDriver::getPreviewFrame(CameraBuffer **buff)
 {
     LOG2("@%s", __FUNCTION__);
 
@@ -1291,7 +1291,7 @@ status_t CameraDriver::putPreviewFrame(CameraBuffer *buff)
     return queueBuffer(buff);;
 }
 
-status_t CameraDriver::getRecordingFrame(CameraBuffer *buff, nsecs_t *timestamp)
+status_t CameraDriver::getRecordingFrame(CameraBuffer **buff, nsecs_t *timestamp)
 {
     LOG2("@%s", __FUNCTION__);
 
@@ -1310,7 +1310,7 @@ status_t CameraDriver::putRecordingFrame(CameraBuffer *buff)
     return queueBuffer(buff);;
 }
 
-status_t CameraDriver::getSnapshot(CameraBuffer *buff)
+status_t CameraDriver::getSnapshot(CameraBuffer **buff)
 {
     LOG2("@%s", __FUNCTION__);
 
@@ -1329,7 +1329,7 @@ status_t CameraDriver::putSnapshot(CameraBuffer *buff)
     return queueBuffer(buff);;
 }
 
-status_t CameraDriver::getThumbnail(CameraBuffer *buff)
+status_t CameraDriver::getThumbnail(CameraBuffer **buff)
 {
     LOG1("@%s", __FUNCTION__);
     return INVALID_OPERATION;
@@ -1348,7 +1348,7 @@ bool CameraDriver::dataAvailable()
 
 bool CameraDriver::isBufferValid(const CameraBuffer* buffer) const
 {
-    return buffer->driverPrivate == this->mSessionId;
+    return buffer->mDriverPrivate == this->mSessionId;
 }
 
 ////////////////////////////////////////////////////////////////////

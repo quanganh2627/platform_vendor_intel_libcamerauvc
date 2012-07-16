@@ -71,8 +71,8 @@ private:
     //
 
     struct MessagePreview {
-        CameraBuffer inputBuff;
-        CameraBuffer outputBuff;
+        CameraBuffer *inputBuff;
+        CameraBuffer *outputBuff;
     };
 
     struct MessageSetPreviewWindow {

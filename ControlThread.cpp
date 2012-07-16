@@ -489,16 +489,13 @@ status_t ControlThread::releaseRecordingFrame(void *buff)
     return mMessageQueue.send(&msg);
 }
 
-void ControlThread::returnBuffer(CameraBuffer *buff1, CameraBuffer *buff2)
+void ControlThread::returnBuffer(CameraBuffer *buff, BufferType type)
 {
     Message msg;
     msg.id = MESSAGE_ID_RETURN_BUFFER;
-    msg.data.returnBuffer.numBuffers = 1;
-    msg.data.returnBuffer.buff1 = *buff1;
-    if (buff2) {
-        msg.data.returnBuffer.numBuffers = 2;
-        msg.data.returnBuffer.buff2 = *buff2;
-    }
+    msg.data.returnBuffer.type = type;
+    msg.data.returnBuffer.buff = buff;
+
     mMessageQueue.send(&msg);
 }
 
@@ -508,13 +505,14 @@ status_t ControlThread::returnPreviewBuffer(CameraBuffer *buff)
 
     if (mState == STATE_PREVIEW_STILL) {
         status = mDriver->putPreviewFrame(buff);
+        buff->mOwner = 0;//force reset the owner
         if (status != NO_ERROR) {
             ALOGE("Error putting preview frame to driver");
         }
     } else if (mState == STATE_PREVIEW_VIDEO || mState == STATE_RECORDING) {
-        if (mCoupledBuffers && buff->id < mNumBuffers) {
-            mCoupledBuffers[buff->id].previewBuffReturned = true;
-            status = queueCoupledBuffers(buff->id);
+        if (mCoupledBuffers && buff->getID() < mNumBuffers) {
+            mCoupledBuffers[buff->getID()].previewBuffReturned = true;
+            status = queueCoupledBuffers(buff->getID());
             if (status != NO_ERROR) {
                 ALOGE("Error queing coupled buffers for preview");
             }
@@ -528,9 +526,9 @@ status_t ControlThread::returnVideoBuffer(CameraBuffer *buff)
 {
     status_t status = NO_ERROR;
     if (mState == STATE_RECORDING) {
-        if (mCoupledBuffers && buff->id < mNumBuffers) {
-            mCoupledBuffers[buff->id].recordingBuffReturned = true;
-            status = queueCoupledBuffers(buff->id);
+        if (mCoupledBuffers && buff->getID() < mNumBuffers) {
+            mCoupledBuffers[buff->getID()].recordingBuffReturned = true;
+            status = queueCoupledBuffers(buff->getID());
             if (status != NO_ERROR) {
                 ALOGE("Error queing coupled buffers for video");
             }
@@ -544,20 +542,20 @@ status_t ControlThread::returnSnapshotBuffer(CameraBuffer *buff)
     status_t status = NO_ERROR;
 
     if (mState == STATE_RECORDING) {
-        if (mCoupledBuffers && buff->id < mNumBuffers) {
-            mCoupledBuffers[buff->id].videoSnapshotBuffReturned = true;
-            status = queueCoupledBuffers(buff->id);
-            mCoupledBuffers[buff->id].videoSnapshotBuffReturned = false;
-            mCoupledBuffers[buff->id].videoSnapshotBuff = false;
+        if (mCoupledBuffers && buff->getID() < mNumBuffers) {
+            mCoupledBuffers[buff->getID()].videoSnapshotBuffReturned = true;
+            status = queueCoupledBuffers(buff->getID());
+            mCoupledBuffers[buff->getID()].videoSnapshotBuffReturned = false;
+            mCoupledBuffers[buff->getID()].videoSnapshotBuff = false;
         }
     } else if (mState == STATE_CAPTURE) {
         status = mDriver->putSnapshot(buff);
+        buff->mOwner = 0;//force reset the owner
         if (status != NO_ERROR) {
             ALOGE("Error in putting snapshot!");
             return status;
         }
     }
-
     return status;
 }
 
@@ -643,8 +641,8 @@ status_t ControlThread::startPreviewCore(bool videoMode)
     int bytes = frameSize(previewFormat, previewWidth, previewHeight);
     for (int i = 0; i < mNumBuffers; i++) {
         mCallbacks->allocateMemory(&mConversionBuffers[i], bytes);
-        mConversionBuffers[i].id = i;
-        mConversionBuffers[i].format = previewFormat;
+        mConversionBuffers[i].mID = i;
+        mConversionBuffers[i].setFormat(previewFormat);
     }
     mCoupledBuffers = new CoupledBuffer[mNumBuffers];
     memset(mCoupledBuffers, 0, mNumBuffers * sizeof(CoupledBuffer));
@@ -681,7 +679,7 @@ status_t ControlThread::stopPreviewCore()
     }
 
     for (int i = 0; i < mNumBuffers; i++) {
-        mConversionBuffers[i].buff->release(mConversionBuffers[i].buff);
+        mConversionBuffers[i].releaseMemory();
     }
     delete [] mCoupledBuffers;
     delete [] mConversionBuffers;
@@ -829,7 +827,7 @@ status_t ControlThread::handleMessageTakePicture()
 {
     LOG1("@%s", __FUNCTION__);
     status_t status = NO_ERROR;
-    CameraBuffer snapshotBuffer, postviewBuffer;
+    CameraBuffer *snapshotBuffer, *postviewBuffer;
     State origState = mState;
     int width;
     int height;
@@ -908,8 +906,7 @@ status_t ControlThread::handleMessageTakePicture()
             ALOGE("Error in grabbing snapshot!");
             return status;
         }
-        snapshotBuffer.type = BUFFER_TYPE_SNAPSHOT;
-        snapshotBuffer.owner = this;
+        snapshotBuffer->setOwner(this);
 
         if (mThumbSupported) {
             if ((status = mDriver->getThumbnail(&postviewBuffer)) != NO_ERROR) {
@@ -917,22 +914,21 @@ status_t ControlThread::handleMessageTakePicture()
                 return status;
             }
         }
-        postviewBuffer.type = BUFFER_TYPE_THUMBNAIL;
-        postviewBuffer.owner = this;
+        postviewBuffer->setOwner(this);
 
         mCallbacks->shutterSound();
 
         if (mThumbSupported) {
-            status = mPictureThread->encode(&snapshotBuffer, &postviewBuffer);
+            status = mPictureThread->encode(snapshotBuffer, postviewBuffer);
         } else {
-            status = mPictureThread->encode(&snapshotBuffer);
+            status = mPictureThread->encode(snapshotBuffer);
         }
 
     } else {
         // If we are in video mode we simply use the recording buffer for picture encoding
         // No need to stop, reconfigure, and restart the driver
         mCoupledBuffers[mLastRecordingBuffIndex].videoSnapshotBuff = true;
-        status = mPictureThread->encode(&mCoupledBuffers[mLastRecordingBuffIndex].recordingBuff);
+        status = mPictureThread->encode(mCoupledBuffers[mLastRecordingBuffIndex].recordingBuff);
     }
 
     return status;
@@ -1000,7 +996,7 @@ status_t ControlThread::handleMessageReleaseRecordingFrame(MessageReleaseRecordi
             ALOGE("Could not find recording buffer: %p", msg->buff);
             return DEAD_OBJECT;
         }
-        LOG2("Recording buffer released from encoder, buff id = %d", buff->id);
+        LOG2("Recording buffer released from encoder, buff id= %d", buff->getID());
         return returnVideoBuffer(buff);
     }
     return status;
@@ -1008,28 +1004,22 @@ status_t ControlThread::handleMessageReleaseRecordingFrame(MessageReleaseRecordi
 
 status_t ControlThread::handleMessageReturnBuffer(MessageReturnBuffer *msg)
 {
-    if (msg->numBuffers == 2)
-        LOG2("return buffer 2 id = %d", msg->buff2.id);
+    CameraBuffer *buff = msg->buff;
+    BufferType type = msg->type;
+    LOG2("return buffer id = %d", buff->getID());
 
-    CameraBuffer *buff = &msg->buff1;
-    for (int i = 0; i < msg->numBuffers; i++) {
-        LOG2("return buffer id = %d", buff->id);
-        if (i == 1)
-            buff = &msg->buff2;
+    if (!mDriver->isBufferValid(buff))
+        return DEAD_OBJECT;
 
-        if (!mDriver->isBufferValid(buff))
-            return DEAD_OBJECT;
-
-        if (buff->type == BUFFER_TYPE_PREVIEW) {
-            returnPreviewBuffer(buff);
-        } else if (buff->type == BUFFER_TYPE_VIDEO) {
-            returnVideoBuffer(buff);
-        } else if (buff->type == BUFFER_TYPE_SNAPSHOT) {
-            returnSnapshotBuffer(buff);
-        } else {
-            ALOGE("invalid buffer type for buff %d", i);
-            return UNKNOWN_ERROR;
-        }
+    if (type == BUFFER_TYPE_PREVIEW) {
+        returnPreviewBuffer(buff);
+    } else if (type == BUFFER_TYPE_VIDEO) {
+        returnVideoBuffer(buff);
+    } else if (type == BUFFER_TYPE_SNAPSHOT) {
+        returnSnapshotBuffer(buff);
+    } else {
+        ALOGE("invalid buffer type for buff %d", buff->getID());
+        return UNKNOWN_ERROR;
     }
 
     return NO_ERROR;
@@ -1047,12 +1037,13 @@ status_t ControlThread::queueCoupledBuffers(int coupledId)
         return NO_ERROR;
 
     LOG2("Putting buffer back to driver, coupledId = %d",  coupledId);
-    status = mDriver->putRecordingFrame(&buff->previewBuff);
+    status = mDriver->putRecordingFrame(buff->previewBuff);
     if (status == DEAD_OBJECT) {
         LOG1("Stale recording buffer returned to driver");
     } else if (status != NO_ERROR) {
         ALOGE("Error putting recording frame to driver");
     }
+    buff->previewBuff->mOwner = 0;//force reset the owner
 
     return status;
 }
@@ -2050,9 +2041,8 @@ CameraBuffer* ControlThread::findRecordingBuffer(void *findMe)
     // This is a small list, so incremental search is not an issue right now
     if (mCoupledBuffers) {
         for (int i = 0; i < mNumBuffers; i++) {
-            if (mCoupledBuffers[i].recordingBuff.buff &&
-                    mCoupledBuffers[i].recordingBuff.buff->data == findMe)
-                return &mCoupledBuffers[i].recordingBuff;
+            if (mCoupledBuffers[i].recordingBuff->getData() == findMe)
+                return mCoupledBuffers[i].recordingBuff;
         }
     }
     return NULL;
@@ -2061,19 +2051,20 @@ CameraBuffer* ControlThread::findRecordingBuffer(void *findMe)
 status_t ControlThread::dequeuePreview()
 {
     LOG2("@%s", __FUNCTION__);
-    CameraBuffer buff;
+    CameraBuffer* buff = NULL;
     status_t status = NO_ERROR;
 
     status = mDriver->getPreviewFrame(&buff);
-    buff.type = BUFFER_TYPE_PREVIEW;
-    buff.owner = this;
+    if(buff == NULL || status != NO_ERROR)
+        return status;
+    buff->setOwner(this);
     if (status == NO_ERROR) {
         if (mState == STATE_PREVIEW_VIDEO || mState == STATE_RECORDING) {
-            mCoupledBuffers[buff.id].previewBuff = buff;
-            mCoupledBuffers[buff.id].previewBuffReturned = false;
+            mCoupledBuffers[buff->getID()].previewBuff = buff;
+            mCoupledBuffers[buff->getID()].previewBuffReturned = false;
         }
-        CameraBuffer *convBuff = &mConversionBuffers[buff.id];
-        status = mPipeThread->preview(&buff, convBuff);
+        CameraBuffer *convBuff = &mConversionBuffers[buff->getID()];
+        status = mPipeThread->preview(buff, convBuff);
         if (status != NO_ERROR)
             ALOGE("Error sending buffer to preview thread");
     } else {
@@ -2085,31 +2076,31 @@ status_t ControlThread::dequeuePreview()
 status_t ControlThread::dequeueRecording()
 {
     LOG2("@%s", __FUNCTION__);
-    CameraBuffer buff;
+    CameraBuffer* buff;
     nsecs_t timestamp;
     status_t status = NO_ERROR;
 
     status = mDriver->getRecordingFrame(&buff, &timestamp);
-    buff.type = BUFFER_TYPE_VIDEO;
-    buff.owner = this;
+
     if (status == NO_ERROR) {
+        buff->setOwner(this);
         int width, height;
         mParameters.getVideoSize(&width, &height);
-        CameraBuffer *convBuff = &mConversionBuffers[buff.id];
-        mCoupledBuffers[buff.id].recordingBuff = *convBuff;
-        mCoupledBuffers[buff.id].recordingBuffReturned = false;
-        mLastRecordingBuffIndex = buff.id;
+        CameraBuffer *convBuff = &mConversionBuffers[buff->getID()];
+        mCoupledBuffers[buff->getID()].recordingBuff = convBuff;
+        mCoupledBuffers[buff->getID()].recordingBuffReturned = false;
+        mLastRecordingBuffIndex = buff->getID();
         // See if recording has started.
         // If it has, process the buffer
         // If it hasn't, return the buffer to the driver
 
-        mCoupledBuffers[buff.id].previewBuff = buff;
-        mCoupledBuffers[buff.id].previewBuffReturned = false;
+        mCoupledBuffers[buff->getID()].previewBuff = buff;
+        mCoupledBuffers[buff->getID()].previewBuffReturned = false;
         if (mState == STATE_RECORDING) {
-            mPipeThread->previewVideo(&buff, convBuff, timestamp);
+            mPipeThread->previewVideo(buff, convBuff, timestamp);
         } else {
-            mCoupledBuffers[buff.id].recordingBuffReturned = true;
-            status = mPipeThread->preview(&buff, convBuff);
+            mCoupledBuffers[buff->getID()].recordingBuffReturned = true;
+            status = mPipeThread->preview(buff, convBuff);
         }
 
     } else {

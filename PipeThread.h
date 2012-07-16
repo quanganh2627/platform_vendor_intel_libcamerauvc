@@ -77,16 +77,15 @@ private:
     //
 
     struct MessagePreview {
-        CameraBuffer input;
-        CameraBuffer output;
+        CameraBuffer *input;
+        CameraBuffer *output;
     };
 
     struct MessagePreviewVideo {
-        CameraBuffer input;
-        CameraBuffer output;
+        CameraBuffer *input;
+        CameraBuffer *output;
         nsecs_t timestamp;
     };
-
     // union of all message data
     union MessageData {
 
@@ -111,6 +110,7 @@ private:
     status_t handleMessagePreview(MessagePreview *msg);
     status_t handleMessagePreviewVideo(MessagePreviewVideo *msg);
     status_t handleMessageFlush();
+
 
     // main message function
     status_t waitForAndExecuteMessage();

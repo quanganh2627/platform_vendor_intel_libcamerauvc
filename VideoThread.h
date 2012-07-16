@@ -66,7 +66,7 @@ private:
     //
 
     struct MessageVideo {
-        CameraBuffer buff;
+        CameraBuffer* buff;
         nsecs_t timestamp;
     };
 

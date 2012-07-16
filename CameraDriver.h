@@ -118,17 +118,17 @@ public:
 
     inline int getNumBuffers() { return NUM_DEFAULT_BUFFERS; }
 
-    status_t getPreviewFrame(CameraBuffer *buff);
+    status_t getPreviewFrame(CameraBuffer **buff);
     status_t putPreviewFrame(CameraBuffer *buff);
 
-    status_t getRecordingFrame(CameraBuffer *buff, nsecs_t *timestamp);
+    status_t getRecordingFrame(CameraBuffer **buff, nsecs_t *timestamp);
     status_t putRecordingFrame(CameraBuffer *buff);
 
     status_t setSnapshotBuffers(void *buffs, int numBuffs);
-    status_t getSnapshot(CameraBuffer *buff);
+    status_t getSnapshot(CameraBuffer **buff);
     status_t putSnapshot(CameraBuffer *buff);
 
-    status_t getThumbnail(CameraBuffer *buff);
+    status_t getThumbnail(CameraBuffer **buff);
     status_t putThumbnail(CameraBuffer *buff);
 
     bool dataAvailable();
@@ -253,7 +253,7 @@ private:
     status_t freeBuffer(int index);
     status_t freeBuffers();
     status_t queueBuffer(CameraBuffer *buff, bool init = false);
-    status_t dequeueBuffer(CameraBuffer *buff, nsecs_t *timestamp = 0);
+    status_t dequeueBuffer(CameraBuffer **buff, nsecs_t *timestamp = 0);
 
     status_t v4l2_capture_open(const char *devName);
     status_t v4l2_capture_close(int fd);

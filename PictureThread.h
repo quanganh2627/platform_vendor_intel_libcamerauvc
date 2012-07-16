@@ -83,8 +83,8 @@ private:
     //
 
     struct MessageEncode {
-        CameraBuffer snaphotBuf;
-        CameraBuffer postviewBuf;
+        CameraBuffer *snaphotBuf;
+        CameraBuffer *postviewBuf;
     };
 
     // union of all message data

@@ -55,7 +55,7 @@ status_t VideoThread::video(CameraBuffer *buff, nsecs_t timestamp)
     LOG2("@%s", __FUNCTION__);
     Message msg;
     msg.id = MESSAGE_ID_VIDEO;
-    msg.data.video.buff= *buff;
+    msg.data.video.buff= buff;
     msg.data.video.timestamp = timestamp;
     return mMessageQueue.send(&msg);
 }
@@ -82,7 +82,7 @@ status_t VideoThread::handleMessageVideo(MessageVideo *msg)
     LOG2("@%s", __FUNCTION__);
     status_t status = NO_ERROR;
 
-    mCallbacks->videoFrameDone(&msg->buff, msg->timestamp);
+    mCallbacks->videoFrameDone(msg->buff, msg->timestamp);
 
     return status;
 }

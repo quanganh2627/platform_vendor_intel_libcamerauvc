@@ -72,7 +72,7 @@ status_t PictureThread::encodeToJpeg(CameraBuffer *mainBuf, CameraBuffer *thumbB
 
         // setup the JpegCompressor input and output buffers
         mEncoderInBuf.clear();
-        mEncoderInBuf.buf = (unsigned char*)thumbBuf->buff->data;
+        mEncoderInBuf.buf = (unsigned char*)thumbBuf->getData();
         mEncoderInBuf.width = mConfig.thumbnail.width;
         mEncoderInBuf.height = mConfig.thumbnail.height;
         mEncoderInBuf.format = mConfig.thumbnail.format;
@@ -117,7 +117,7 @@ status_t PictureThread::encodeToJpeg(CameraBuffer *mainBuf, CameraBuffer *thumbB
     // Convert and encode the main picture image
     // setup the JpegCompressor input and output buffers
     mEncoderInBuf.clear();
-    mEncoderInBuf.buf = (unsigned char *) mainBuf->buff->data;
+    mEncoderInBuf.buf = (unsigned char *) mainBuf->getData();
 
     mEncoderInBuf.width = mConfig.picture.width;
     mEncoderInBuf.height = mConfig.picture.height;
@@ -144,16 +144,16 @@ status_t PictureThread::encodeToJpeg(CameraBuffer *mainBuf, CameraBuffer *thumbB
 
     if (status == NO_ERROR) {
         mCallbacks->allocateMemory(destBuf, totalSize);
-        if (destBuf->buff == NULL) {
+        if (destBuf->getData() == NULL) {
             ALOGE("No memory for final JPEG file!");
             status = NO_MEMORY;
         }
     }
     if (status == NO_ERROR) {
         // Copy EXIF (it will also have the SOI and EOI markers
-        memcpy(destBuf->buff->data, mExifBuf, exifSize);
+        memcpy(destBuf->getData(), mExifBuf, exifSize);
         // Copy the final JPEG stream into the final destination buffer, but exclude the SOI marker
-        char *copyTo = (char*)destBuf->buff->data + exifSize;
+        char *copyTo = (char*)destBuf->getData() + exifSize;
         char *copyFrom = (char*)mOutData + sizeof(JPEG_MARKER_SOI);
         memcpy(copyTo, copyFrom, mainSize - sizeof(JPEG_MARKER_SOI));
     }
@@ -167,13 +167,9 @@ status_t PictureThread::encode(CameraBuffer *snaphotBuf, CameraBuffer *postviewB
     LOG1("@%s", __FUNCTION__);
     Message msg;
     msg.id = MESSAGE_ID_ENCODE;
-    msg.data.encode.snaphotBuf = *snaphotBuf;
-    if (postviewBuf) {
-        msg.data.encode.postviewBuf = *postviewBuf;
-    } else {
-        // thumbnail is optional
-        msg.data.encode.postviewBuf.buff = NULL;
-    }
+    msg.data.encode.snaphotBuf = snaphotBuf;
+    msg.data.encode.postviewBuf = postviewBuf;
+
     return mMessageQueue.send(&msg);
 }
 
@@ -225,7 +221,7 @@ status_t PictureThread::handleMessageExit()
 
 status_t PictureThread::handleMessageEncode(MessageEncode *msg)
 {
-    LOG1("@%s: snapshot ID = %d", __FUNCTION__, msg->snaphotBuf.id);
+    LOG1("@%s: snapshot ID = %d", __FUNCTION__, msg->snaphotBuf->getID());
     status_t status = NO_ERROR;
     int exifSize = 0;
     int totalSize = 0;
@@ -239,23 +235,21 @@ status_t PictureThread::handleMessageEncode(MessageEncode *msg)
     }
 
     // Encode the image
-    CameraBuffer *postviewBuf = msg->postviewBuf.buff == NULL ? NULL : &msg->postviewBuf;
-    if ((status = encodeToJpeg(&msg->snaphotBuf, postviewBuf, &jpegBuf)) == NO_ERROR) {
+    CameraBuffer *postviewBuf = msg->postviewBuf == NULL ? NULL : msg->postviewBuf;
+    if ((status = encodeToJpeg(msg->snaphotBuf, postviewBuf, &jpegBuf)) == NO_ERROR) {
         mCallbacks->compressedFrameDone(&jpegBuf);
     } else {
         ALOGE("Error generating JPEG image!");
     }
 
-    if (jpegBuf.buff != NULL && jpegBuf.buff->data != NULL) {
-        LOG1("Releasing jpegBuf @%p", jpegBuf.buff->data);
-        jpegBuf.buff->release(jpegBuf.buff);
-    }
+
+    LOG1("Releasing jpegBuf @%p", jpegBuf.getData());
+    jpegBuf.releaseMemory();
     // When the encoding is done, send back the buffers to camera
 
-    IBufferOwner *owner = msg->snaphotBuf.owner;
-    if (owner) {
-        owner->returnBuffer(&msg->snaphotBuf, postviewBuf);
-    }
+    msg->snaphotBuf->doneProcessing(BUFFER_TYPE_SNAPSHOT);
+    if (msg->postviewBuf != NULL)
+        msg->postviewBuf->doneProcessing(BUFFER_TYPE_THUMBNAIL);
 
     return status;
 }

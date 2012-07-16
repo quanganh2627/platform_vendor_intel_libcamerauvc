@@ -74,8 +74,8 @@ status_t PreviewThread::preview(CameraBuffer *inputBuff, CameraBuffer *outputBuf
     LOG2("@%s", __FUNCTION__);
     Message msg;
     msg.id = MESSAGE_ID_PREVIEW;
-    msg.data.preview.inputBuff = *inputBuff;
-    msg.data.preview.outputBuff = *outputBuff;
+    msg.data.preview.inputBuff = inputBuff;
+    msg.data.preview.outputBuff = outputBuff;
     return mMessageQueue.send(&msg);
 }
 
@@ -102,8 +102,8 @@ status_t PreviewThread::handleMessagePreview(MessagePreview *msg)
     status_t status = NO_ERROR;
 
     LOG2("Buff: id = %d, data = %p",
-            msg->inputBuff.id,
-            msg->inputBuff.buff->data);
+            msg->inputBuff->getID(),
+            msg->inputBuff->getData());
 
     if (mPreviewWindow != 0) {
         buffer_handle_t *buf;
@@ -132,7 +132,7 @@ status_t PreviewThread::handleMessagePreview(MessagePreview *msg)
             LOG2("Preview Color Conversion to RGBA, stride: %d height: %d", stride, mPreviewHeight);
             colorConvert(V4L2_PIX_FMT_YUYV, V4L2_PIX_FMT_RGB32,
                     mPreviewWidth, mPreviewHeight,
-                    msg->inputBuff.buff->data, dst);
+                    msg->inputBuff->getData(), dst);
             if ((err = mPreviewWindow->enqueue_buffer(mPreviewWindow, buf)) != 0) {
                 ALOGE("Surface::queueBuffer returned error %d", err);
             }
@@ -141,14 +141,10 @@ status_t PreviewThread::handleMessagePreview(MessagePreview *msg)
         buf = NULL;
     }
 
-    mCallbacks->previewFrameDone(&msg->outputBuff);
     mDebugFPS->update(); // update fps counter
-
 exit:
-    IBufferOwner *owner = msg->inputBuff.owner;
-    if (owner) {
-        owner->returnBuffer(&msg->inputBuff);
-    }
+    msg->inputBuff->doneProcessing(BUFFER_TYPE_PREVIEW);
+    mCallbacks->previewFrameDone(msg->outputBuff);
 
     return status;
 }

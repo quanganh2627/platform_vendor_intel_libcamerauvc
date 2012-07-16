@@ -100,7 +100,7 @@ public:
 // callback methods
 private:
     virtual void autoFocusDone();
-    virtual void returnBuffer(CameraBuffer *buff1, CameraBuffer *buff2 = NULL);
+    virtual void returnBuffer(CameraBuffer *buff1, BufferType type);
 
 // private types
 private:
@@ -138,9 +138,8 @@ private:
     };
 
     struct MessageReturnBuffer {
-        int numBuffers;
-        CameraBuffer buff1;
-        CameraBuffer buff2;
+        CameraBuffer* buff;
+        BufferType type;
     };
 
     struct MessageSetParameters {
@@ -159,7 +158,7 @@ private:
 
     struct MessageFacesDetected {
         camera_frame_metadata_t* meta;
-        CameraBuffer buf;
+        CameraBuffer* buf;
     };
 
     // union of all message data
@@ -199,8 +198,8 @@ private:
     };
 
     struct CoupledBuffer {
-        CameraBuffer previewBuff;
-        CameraBuffer recordingBuff;
+        CameraBuffer* previewBuff;
+        CameraBuffer* recordingBuff;
         bool previewBuffReturned;
         bool recordingBuffReturned;
         bool videoSnapshotBuff;

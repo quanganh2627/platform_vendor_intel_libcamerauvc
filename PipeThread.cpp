@@ -65,8 +65,8 @@ status_t PipeThread::preview(CameraBuffer *input, CameraBuffer *output)
     LOG2("@%s", __FUNCTION__);
     Message msg;
     msg.id = MESSAGE_ID_PREVIEW;
-    msg.data.preview.input = *input;
-    msg.data.preview.output = *output;
+    msg.data.preview.input = input;
+    msg.data.preview.output = output;
     return mMessageQueue.send(&msg);
 }
 
@@ -75,8 +75,8 @@ status_t PipeThread::previewVideo(CameraBuffer *input, CameraBuffer *output, nse
     LOG2("@%s", __FUNCTION__);
     Message msg;
     msg.id = MESSAGE_ID_PREVIEW_VIDEO;
-    msg.data.previewVideo.input = *input;
-    msg.data.previewVideo.output = *output;
+    msg.data.previewVideo.input = input;
+    msg.data.previewVideo.output = output;
     msg.data.previewVideo.timestamp = timestamp;
     return mMessageQueue.send(&msg);
 }
@@ -105,20 +105,16 @@ status_t PipeThread::handleMessagePreview(MessagePreview *msg)
     status_t status = NO_ERROR;
 
     status = colorConvert(mInputFormat, mOutputFormat, mWidth, mHeight,
-            msg->input.buff->data, msg->output.buff->data);
+            msg->input->getData(), msg->output->getData());
 
     if (status == NO_ERROR) {
-        CameraBuffer previewIn = msg->input;
-        CameraBuffer previewOut = msg->output;
-        previewIn.type = BUFFER_TYPE_PREVIEW;
-        previewOut.type = BUFFER_TYPE_PREVIEW;
+        CameraBuffer *previewIn = msg->input;
+        CameraBuffer *previewOut = msg->output;
 
-        status = mPreviewThread->preview(&previewIn, &previewOut);
+        status = mPreviewThread->preview(previewIn, previewOut);
         if (status != NO_ERROR) {
             ALOGE("failed to send preview buffer");
-            IBufferOwner *owner = previewIn.owner;
-            if (owner)
-                owner->returnBuffer(&previewIn);
+            previewIn->doneProcessing(BUFFER_TYPE_PREVIEW);
         }
     }
 
@@ -131,34 +127,28 @@ status_t PipeThread::handleMessagePreviewVideo(MessagePreviewVideo *msg)
     status_t status = NO_ERROR;
 
     status = colorConvert(mInputFormat, mOutputFormat, mWidth, mHeight,
-            msg->input.buff->data, msg->output.buff->data);
+            msg->input->getData(), msg->output->getData());
 
     if (status == NO_ERROR) {
-        CameraBuffer previewIn = msg->input;
-        CameraBuffer previewOut = msg->output;
-        CameraBuffer video = msg->output;
+        CameraBuffer *previewIn = msg->input;
+        CameraBuffer *previewOut = msg->output;
+        CameraBuffer *video = msg->output;
 
-        previewIn.type = BUFFER_TYPE_PREVIEW;
-        previewOut.type = BUFFER_TYPE_PREVIEW;
-        video.type = BUFFER_TYPE_VIDEO; // preview and video buffers are shared
-
-        status = mPreviewThread->preview(&previewIn, &previewOut);
+        status = mPreviewThread->preview(previewIn, previewOut);
         if (status == NO_ERROR) {
 
-            status = mVideoThread->video(&video, msg->timestamp);
+            status = mVideoThread->video(video, msg->timestamp);
             if (status != NO_ERROR) {
                 // only need to return video buffer since preview buffer was successful
                 ALOGE("failed to send preview buffer");
-                IBufferOwner *owner = video.owner;
-                if (owner)
-                    owner->returnBuffer(&video);
+                video->doneProcessing(BUFFER_TYPE_VIDEO);
             }
         } else {
             // return both preview and video buffers
             ALOGE("failed to send preview buffer");
-            IBufferOwner *owner = previewIn.owner;
-            if (owner)
-                owner->returnBuffer(&previewIn, &video);
+            previewIn->doneProcessing(BUFFER_TYPE_PREVIEW);
+            video->doneProcessing(BUFFER_TYPE_VIDEO);
+
         }
     }
 
