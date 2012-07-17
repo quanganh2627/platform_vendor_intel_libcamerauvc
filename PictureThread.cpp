@@ -169,8 +169,14 @@ status_t PictureThread::encode(CameraBuffer *snaphotBuf, CameraBuffer *postviewB
     msg.id = MESSAGE_ID_ENCODE;
     msg.data.encode.snaphotBuf = snaphotBuf;
     msg.data.encode.postviewBuf = postviewBuf;
-
-    return mMessageQueue.send(&msg);
+    status_t ret = INVALID_OPERATION;
+    if ((ret = mMessageQueue.send(&msg)) == NO_ERROR) {
+        if (snaphotBuf != 0)
+            snaphotBuf->incrementReader();
+        if (postviewBuf != 0)
+            postviewBuf->incrementReader();
+    }
+    return ret;
 }
 
 void PictureThread::getDefaultParameters(CameraParameters *params)
@@ -245,11 +251,11 @@ status_t PictureThread::handleMessageEncode(MessageEncode *msg)
 
     LOG1("Releasing jpegBuf @%p", jpegBuf.getData());
     jpegBuf.releaseMemory();
-    // When the encoding is done, send back the buffers to camera
 
-    msg->snaphotBuf->doneProcessing(BUFFER_TYPE_SNAPSHOT);
-    if (msg->postviewBuf != NULL)
-        msg->postviewBuf->doneProcessing(BUFFER_TYPE_THUMBNAIL);
+    // When the encoding is done, send back the buffers to camera
+    msg->snaphotBuf->decrementReader();
+    if (msg->postviewBuf != 0)
+        msg->postviewBuf->decrementReader();
 
     return status;
 }

@@ -64,21 +64,35 @@ status_t PipeThread::preview(CameraBuffer *input, CameraBuffer *output)
 {
     LOG2("@%s", __FUNCTION__);
     Message msg;
+    status_t ret = INVALID_OPERATION;
     msg.id = MESSAGE_ID_PREVIEW;
     msg.data.preview.input = input;
     msg.data.preview.output = output;
-    return mMessageQueue.send(&msg);
+    if ((ret = mMessageQueue.send(&msg)) == NO_ERROR) {
+        if (input != 0)
+            input->incrementReader();
+        if (output != 0)
+            output->incrementReader();
+    }
+    return ret;
 }
 
 status_t PipeThread::previewVideo(CameraBuffer *input, CameraBuffer *output, nsecs_t timestamp)
 {
     LOG2("@%s", __FUNCTION__);
     Message msg;
+    status_t ret = INVALID_OPERATION;
     msg.id = MESSAGE_ID_PREVIEW_VIDEO;
     msg.data.previewVideo.input = input;
     msg.data.previewVideo.output = output;
     msg.data.previewVideo.timestamp = timestamp;
-    return mMessageQueue.send(&msg);
+    if ((ret = mMessageQueue.send(&msg)) == NO_ERROR) {
+        if (input != 0)
+            input->incrementReader();
+        if (output != 0)
+            output->incrementReader();
+    }
+    return ret;
 }
 
 status_t PipeThread::flushBuffers()
@@ -114,10 +128,10 @@ status_t PipeThread::handleMessagePreview(MessagePreview *msg)
         status = mPreviewThread->preview(previewIn, previewOut);
         if (status != NO_ERROR) {
             ALOGE("failed to send preview buffer");
-            previewIn->doneProcessing(BUFFER_TYPE_PREVIEW);
         }
     }
-
+    msg->input->decrementReader();
+    msg->output->decrementReader();
     return status;
 }
 
@@ -136,22 +150,17 @@ status_t PipeThread::handleMessagePreviewVideo(MessagePreviewVideo *msg)
 
         status = mPreviewThread->preview(previewIn, previewOut);
         if (status == NO_ERROR) {
-
             status = mVideoThread->video(video, msg->timestamp);
             if (status != NO_ERROR) {
-                // only need to return video buffer since preview buffer was successful
                 ALOGE("failed to send preview buffer");
-                video->doneProcessing(BUFFER_TYPE_VIDEO);
             }
         } else {
-            // return both preview and video buffers
-            ALOGE("failed to send preview buffer");
-            previewIn->doneProcessing(BUFFER_TYPE_PREVIEW);
-            video->doneProcessing(BUFFER_TYPE_VIDEO);
-
+             ALOGE("failed to send preview buffer");
         }
     }
-
+    //we are done with the buffer
+    msg->input->decrementReader();
+    msg->output->decrementReader();
     return status;
 }
 

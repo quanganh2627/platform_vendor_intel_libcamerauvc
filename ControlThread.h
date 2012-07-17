@@ -18,6 +18,7 @@
 #define ANDROID_LIBCAMERA_CONTROL_THREAD_H
 
 #include <utils/threads.h>
+#include <utils/Vector.h>
 #include <camera.h>
 #include <camera/CameraParameters.h>
 #include "MessageQueue.h"
@@ -100,7 +101,7 @@ public:
 // callback methods
 private:
     virtual void autoFocusDone();
-    virtual void returnBuffer(CameraBuffer *buff1, BufferType type);
+    virtual void returnBuffer(CameraBuffer *buff);
 
 // private types
 private:
@@ -139,7 +140,6 @@ private:
 
     struct MessageReturnBuffer {
         CameraBuffer* buff;
-        BufferType type;
     };
 
     struct MessageSetParameters {
@@ -197,15 +197,6 @@ private:
         STATE_CAPTURE,
     };
 
-    struct CoupledBuffer {
-        CameraBuffer* previewBuff;
-        CameraBuffer* recordingBuff;
-        bool previewBuffReturned;
-        bool recordingBuffReturned;
-        bool videoSnapshotBuff;
-        bool videoSnapshotBuffReturned;
-    };
-
 // private methods
 private:
 
@@ -219,6 +210,8 @@ private:
     status_t returnPreviewBuffer(CameraBuffer *buff);
     status_t returnVideoBuffer(CameraBuffer *buff);
     status_t returnSnapshotBuffer(CameraBuffer *buff);
+    status_t returnThumbnailBuffer(CameraBuffer *buff);
+    status_t returnConversionBuffer(CameraBuffer *buff);
 
     // thread message execution functions
     status_t handleMessageExit();
@@ -248,7 +241,6 @@ private:
     // dequeue buffers from driver and deliver them
     status_t dequeuePreview();
     status_t dequeueRecording();
-    status_t queueCoupledBuffers(int coupledId);
 
     // parameters handling functions
     bool isParameterSet(const char* param);
@@ -291,6 +283,13 @@ private:
 
     status_t stopCapture();
 
+    CameraBuffer* getFreeBuffer(){
+        if(mFreeBuffers.size() == 0)
+            return 0;
+        CameraBuffer* ret = mFreeBuffers.editTop();
+        mFreeBuffers.pop();
+        return ret;
+    }
 
 // inherited from Thread
 private:
@@ -311,8 +310,8 @@ private:
     Callbacks *mCallbacks;
 
     CameraBuffer *mConversionBuffers;
-    CoupledBuffer *mCoupledBuffers;
     int mNumBuffers;
+    Vector<CameraBuffer *> mFreeBuffers;
 
     CameraParameters mParameters;
     IFaceDetector* m_pFaceDetector;
@@ -320,8 +319,9 @@ private:
     bool mAutoFocusActive;
     bool mThumbSupported;
 
-    int mLastRecordingBuffIndex;
+    CameraBuffer* mLastRecordingBuff;
     int mCameraFormat;
+
 
 }; // class ControlThread
 

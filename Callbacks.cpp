@@ -82,7 +82,9 @@ void Callbacks::previewFrameDone(CameraBuffer *buff)
     LOG2("@%s", __FUNCTION__);
     if ((mMessageFlags & CAMERA_MSG_PREVIEW_FRAME) && mDataCB != NULL) {
         LOG2("Sending message: CAMERA_MSG_PREVIEW_FRAME, buff id = %d", buff->getID());
+        buff->incrementReader();
         mDataCB(CAMERA_MSG_PREVIEW_FRAME, buff->getCameraMem(), 0, NULL, mUserToken);
+        buff->decrementReader();
     }
 }
 
@@ -91,7 +93,9 @@ void Callbacks::videoFrameDone(CameraBuffer *buff, nsecs_t timestamp)
     LOG2("@%s", __FUNCTION__);
     if ((mMessageFlags & CAMERA_MSG_VIDEO_FRAME) && mDataCBTimestamp != NULL) {
         LOG2("Sending message: CAMERA_MSG_VIDEO_FRAME, buff id = %d", buff->getID());
+        buff->incrementReader();
         mDataCBTimestamp(timestamp, CAMERA_MSG_VIDEO_FRAME, buff->getCameraMem(), 0, mUserToken);
+        //decrement will be done when buffer is released by client in ControlThread
     }
 }
 
@@ -100,7 +104,9 @@ void Callbacks::compressedFrameDone(CameraBuffer *buff)
     LOG1("@%s", __FUNCTION__);
     if ((mMessageFlags & CAMERA_MSG_COMPRESSED_IMAGE) && mDataCB != NULL) {
         LOG1("Sending message: CAMERA_MSG_COMPRESSED_IMAGE, buff id = %d", buff->getID());
+        buff->incrementReader();
         mDataCB(CAMERA_MSG_COMPRESSED_IMAGE, buff->getCameraMem(), 0, NULL, mUserToken);
+        buff->decrementReader();
     }
 }
 
@@ -116,6 +122,7 @@ void Callbacks::facesDetected(camera_frame_metadata_t &face_metadata, CameraBuff
 {
  /*If the Call back is enabled for meta data and face detection is
     * active, inform about faces.*/
+    buff->incrementReader(); //ensure this buff is not enqueue back to driver.
     if ((mMessageFlags & CAMERA_MSG_PREVIEW_METADATA)){
         // We can't pass NULL to camera service, otherwise it
         // will handle it as notification callback. So we need a dummy.
@@ -127,7 +134,7 @@ void Callbacks::facesDetected(camera_frame_metadata_t &face_metadata, CameraBuff
              &face_metadata,
              mUserToken);
     }
-    buff->doneProcessing(BUFFER_TYPE_PREVIEW);
+    buff->decrementReader();
 }
 
 void Callbacks::allocateMemory(CameraBuffer *buff, int size)

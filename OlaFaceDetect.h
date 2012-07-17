@@ -60,7 +60,7 @@ private:
     // message data structures
     //
     struct MessageFrame {
-        CameraBuffer img;
+        CameraBuffer* img;
         int width;
         int height;
     };

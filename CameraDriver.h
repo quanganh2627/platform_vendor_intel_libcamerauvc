@@ -130,6 +130,7 @@ public:
 
     status_t getThumbnail(CameraBuffer **buff);
     status_t putThumbnail(CameraBuffer *buff);
+    CameraBuffer* findBuffer(void* findMe) const;
 
     bool dataAvailable();
     bool isBufferValid(const CameraBuffer * buffer) const;

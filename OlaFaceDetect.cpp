@@ -99,10 +99,12 @@ int OlaFaceDetect::sendFrame(CameraBuffer *img, int width, int height)
     ALOGV("%s: sendFrame, data =%p, width=%d height=%d\n", __func__, img->getData(), width, height);
     Message msg;
     msg.id = MESSAGE_ID_FRAME;
-    msg.data.frame.img = *img;
+    msg.data.frame.img = img;
     msg.data.frame.height = height;
     msg.data.frame.width = width;
     if (mMessageQueue.send(&msg) == NO_ERROR) {
+        if (img != 0)
+            img->incrementReader();
         return 0;
     }
     else
@@ -141,9 +143,9 @@ status_t OlaFaceDetect::handleFrame(MessageFrame frame)
     ALOGV("%s: Face detection executing\n", __func__);
     if (mFaceDetectionStruct == 0) return INVALID_OPERATION;
 
-    ALOGV("%s: data =%p, width=%d height=%d\n", __func__, frame.img.getData(), frame.width, frame.height);
+    ALOGV("%s: data =%p, width=%d height=%d\n", __func__, frame.img->getData(), frame.width, frame.height);
     int faces = CameraFaceDetection_FindFace(mFaceDetectionStruct,
-            (unsigned char*) (frame.img.getData()),
+            (unsigned char*) (frame.img->getData()),
             frame.width, frame.height);
     ALOGV("%s CameraFaceDetection_FindFace faces %d, %d\n", __func__, faces, mFaceDetectionStruct->numDetected);
 
@@ -161,7 +163,8 @@ status_t OlaFaceDetect::handleFrame(MessageFrame frame)
     }
     //blocking call
     ALOGV("%s calling listener", __func__);
-    mpListener->facesDetected(face_metadata, &frame.img);
+    mpListener->facesDetected(face_metadata, frame.img);
+    frame.img>decrementReader();
     ALOGV("%s returned from listener", __func__);
 
     return NO_ERROR;

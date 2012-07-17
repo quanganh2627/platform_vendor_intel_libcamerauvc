@@ -54,10 +54,13 @@ status_t VideoThread::video(CameraBuffer *buff, nsecs_t timestamp)
 {
     LOG2("@%s", __FUNCTION__);
     Message msg;
+    status_t ret = INVALID_OPERATION;
     msg.id = MESSAGE_ID_VIDEO;
     msg.data.video.buff= buff;
     msg.data.video.timestamp = timestamp;
-    return mMessageQueue.send(&msg);
+    if ((ret = mMessageQueue.send(&msg)) == NO_ERROR && buff != 0)
+        buff->incrementReader();
+    return ret;
 }
 
 status_t VideoThread::flushBuffers()
@@ -83,6 +86,8 @@ status_t VideoThread::handleMessageVideo(MessageVideo *msg)
     status_t status = NO_ERROR;
 
     mCallbacks->videoFrameDone(msg->buff, msg->timestamp);
+    if (msg->buff != 0)
+        msg->buff->decrementReader();
 
     return status;
 }

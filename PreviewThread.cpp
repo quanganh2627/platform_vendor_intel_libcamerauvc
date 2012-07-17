@@ -73,10 +73,17 @@ status_t PreviewThread::preview(CameraBuffer *inputBuff, CameraBuffer *outputBuf
 {
     LOG2("@%s", __FUNCTION__);
     Message msg;
+    status_t ret = INVALID_OPERATION;
     msg.id = MESSAGE_ID_PREVIEW;
     msg.data.preview.inputBuff = inputBuff;
     msg.data.preview.outputBuff = outputBuff;
-    return mMessageQueue.send(&msg);
+    if ((ret = mMessageQueue.send(&msg)) == NO_ERROR) {
+        if (inputBuff != 0)
+            inputBuff->incrementReader();
+        if (outputBuff != 0)
+            outputBuff->incrementReader();
+    }
+    return ret;
 }
 
 status_t PreviewThread::flushBuffers()
@@ -143,9 +150,10 @@ status_t PreviewThread::handleMessagePreview(MessagePreview *msg)
 
     mDebugFPS->update(); // update fps counter
 exit:
-    msg->inputBuff->doneProcessing(BUFFER_TYPE_PREVIEW);
-    mCallbacks->previewFrameDone(msg->outputBuff);
 
+    mCallbacks->previewFrameDone(msg->outputBuff);
+    msg->inputBuff->decrementReader();
+    msg->outputBuff->decrementReader();
     return status;
 }
 

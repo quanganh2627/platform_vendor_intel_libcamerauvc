@@ -624,6 +624,15 @@ void CameraDriver::closeDevice()
 
     mCameraSensor[mCameraId]->fd = -1;
 }
+CameraBuffer* CameraDriver::findBuffer(void* findMe) const
+{
+
+    for (int i = 0; i < mBufferPool.numBuffers; i++) {
+        if (mBufferPool.bufs[i].camBuff.getData() == findMe)
+            return &(mBufferPool.bufs[i].camBuff);
+    }
+    return 0;
+}
 
 status_t CameraDriver::allocateBuffer(int fd, int index)
 {

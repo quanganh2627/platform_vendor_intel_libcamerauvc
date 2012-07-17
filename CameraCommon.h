@@ -19,6 +19,7 @@
 
 #include <camera.h>
 #include <linux/videodev2.h>
+#include <cutils/atomic.h>
 #include <stdio.h>
 #include "LogHelper.h"
 
@@ -34,15 +35,17 @@ namespace android {
 struct CameraBuffer;
 
 enum BufferType {
-    BUFFER_TYPE_PREVIEW,
+    BUFFER_TYPE_PREVIEW = 0,
     BUFFER_TYPE_VIDEO,
     BUFFER_TYPE_SNAPSHOT,
-    BUFFER_TYPE_THUMBNAIL
+    BUFFER_TYPE_THUMBNAIL,
+    BUFFER_TYPE_INTERMEDIATE //used for intermediate conversion,
+                             // no need to return to driver
 };
 class IBufferOwner
 {
 public:
-    virtual void returnBuffer(CameraBuffer* buff1, BufferType t) = 0;
+    virtual void returnBuffer(CameraBuffer* buff1) = 0;
     virtual ~IBufferOwner(){};
 };
 
@@ -56,6 +59,8 @@ public:
         mID(-1),
         mDriverPrivate(0),
         mOwner(0),
+        mReaderCount(0),
+        mType(BUFFER_TYPE_INTERMEDIATE),
         mFormat(0),
         mSize(-1)
     {}
@@ -93,14 +98,26 @@ public:
         mCamMem = m;
     }
 
-    //TODO: use reader reference count
-    // readers should just decrement reader count
+    //readers should  decrement reader count
+    // when buffer is no longer in use
     // buffer automatically returned to driver if
     // reader count goes to zero
-    void doneProcessing(BufferType t)
+    //!TODO rename this method to decrementProcessor
+    void decrementReader()
     {
-        if (mOwner != 0)
-            mOwner->returnBuffer(this, t);
+        android_atomic_dec(&mReaderCount);
+        // if all decrements done and count is zero
+        // return to driver
+        int32_t rc = android_atomic_acquire_load(&mReaderCount);
+        if(rc == 0)
+            returnToOwner();
+    }
+
+    // Readers should increment reader count
+    // as soon as it holds a reference before doing process.
+    void incrementReader()
+    {
+        android_atomic_inc(&mReaderCount);
     }
 
     void setOwner(IBufferOwner* o)
@@ -129,11 +146,14 @@ private:
         mID(other.mID),
         mDriverPrivate(other.mDriverPrivate),
         mOwner(other.mOwner),
+        mReaderCount(other.mReaderCount),
+        mType(other.mType),
         mFormat(other.mFormat),
         mSize(other.mSize)
     {
         ALOGW("CameraBuffers are not designed to pass by value.");
     }
+
     const CameraBuffer& operator=(const CameraBuffer& other)
     {
         ALOGW("CameraBuffers are not designed to pass by value.");
@@ -144,15 +164,26 @@ private:
             this->mID = other.mID;
             this->mSize = other.mSize;
             this->mOwner = other.mOwner;
+            this->mReaderCount = other.mReaderCount;
+            this->mType = other.mType;
         }
         return *this;
     }
+
+    void returnToOwner()
+    {
+        if (mOwner != 0)
+            mOwner->returnBuffer(this);
+    }
+
     camera_memory_t *mCamMem;
     int mID;                 // id for debugging data flow path
     int mDriverPrivate;      // Private to the CameraDriver class.
                             // No other classes should touch this
     IBufferOwner* mOwner;    // owner who is responsible to enqueue back
                             // to CameraDriver
+    volatile int32_t mReaderCount;
+    BufferType mType;
     int mFormat;
     int mSize;
     friend class CameraDriver;
