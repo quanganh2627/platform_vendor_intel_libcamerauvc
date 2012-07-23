@@ -920,6 +920,7 @@ status_t ControlThread::handleMessageTakePicture()
                 postviewBuffer->setOwner(this);
                 postviewBuffer->mType = BUFFER_TYPE_THUMBNAIL;
             }
+            postviewBuffer->setOwner(this);
         }
 
         mCallbacks->shutterSound();
