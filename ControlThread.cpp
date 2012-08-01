@@ -790,8 +790,8 @@ status_t ControlThread::handleMessageStartRecording()
          * we first need to stop CameraDriver and restart it with MODE_VIDEO
          */
         LOG2("We are in STATE_PREVIEW. Switching to STATE_VIDEO before starting to record.");
-        if ((status = mDriver->stop()) == NO_ERROR) {
-            if ((status = mDriver->start(CameraDriver::MODE_VIDEO)) == NO_ERROR) {
+        if ((status = stopPreviewCore()) == NO_ERROR) {
+            if ((status = startPreviewCore(true)) == NO_ERROR) {
                 mState = STATE_RECORDING;
             } else {
                 ALOGE("Error starting driver in VIDEO mode!");
