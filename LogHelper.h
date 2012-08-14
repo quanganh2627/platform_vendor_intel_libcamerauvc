@@ -30,4 +30,14 @@ static void setLogLevel(int level) {
 #define LOG1(...) ALOGD_IF(gLogLevel >= 1, __VA_ARGS__);
 #define LOG2(...) ALOGD_IF(gLogLevel >= 2, __VA_ARGS__);
 
+#ifndef ALOGE
+    #define ALOGE LOGE
+#endif
+#ifndef ALOGI
+    #define ALOGI LOGI
+#endif
+#ifndef ALOGV
+    #define ALOGV LOGV
+#endif
+
 #endif /* LOGHELPER_H_ */
