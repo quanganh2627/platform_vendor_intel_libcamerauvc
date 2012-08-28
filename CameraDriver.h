@@ -259,11 +259,10 @@ private:
     status_t v4l2_capture_open(const char *devName);
     status_t v4l2_capture_close(int fd);
     status_t v4l2_capture_querycap(int fd, struct v4l2_capability *cap);
-    void logCameraFeatures();
     int detectDeviceResolutions();
     int set_capture_mode(Mode deviceMode);
     int v4l2_capture_try_format(int fd, int *w, int *h);
-    int v4l2_capture_g_framerate(int fd, float * framerate, int width, int height, int format);
+    int v4l2_capture_g_framerate(int fd, float * framerate, int width, int height);
     int v4l2_capture_s_format(int fd, int w, int h);
     int set_attribute (int fd, int attribute_num,
                                const int value, const char *name);

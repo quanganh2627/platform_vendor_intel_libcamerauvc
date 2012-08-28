@@ -97,7 +97,6 @@ CameraDriver::CameraDriver(int cameraId) :
         return;
     }
 
-    logCameraFeatures();
     ret = detectDeviceResolutions();
     if (ret) {
         ALOGE("Failed to detect camera resolution! Use default settings");
@@ -507,7 +506,7 @@ int CameraDriver::configureDevice(Mode deviceMode, int w, int h, int numBuffers)
     if (ret < 0)
         return ret;
 
-    ret = v4l2_capture_g_framerate(fd, &mConfig.fps, w, h, mFormat);
+    ret = v4l2_capture_g_framerate(fd, &mConfig.fps, w, h);
     if (ret < 0) {
         /*Error handler: if driver does not support FPS achieving,
           just give the default value.*/
@@ -804,107 +803,40 @@ status_t CameraDriver::dequeueBuffer(CameraBuffer **buff, nsecs_t *timestamp)
     return NO_ERROR;
 }
 
-void CameraDriver::logCameraFeatures()
-{
-#define LOG_FEATURE(fmt, ...) LOG1("CameraFeature " fmt, ##__VA_ARGS__)
-
-    int i = 0;
-
-    // log all of the supported frame sizes and resolutions for each supported format
-    // frame sizes and resolutions may vary depending on format
-    struct v4l2_fmtdesc fmt;
-    while (true) {
-        CLEAR(fmt);
-        fmt.index = i++;
-        fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        fmt.flags = 0;
-        if (ioctl(mCameraSensor[mCameraId]->fd, VIDIOC_ENUM_FMT, &fmt) < 0) {
-            break;
-        }
-
-        struct v4l2_frmsizeenum framesize;
-        int j = 0;
-        float fps = 0;
-        while (true) {
-            CLEAR(framesize);
-            framesize.index = j++;
-            framesize.pixel_format = fmt.pixelformat;
-
-            if (ioctl(mCameraSensor[mCameraId]->fd, VIDIOC_ENUM_FRAMESIZES, &framesize) < 0) {
-                break;
-            }
-
-            v4l2_capture_g_framerate(
-                    mCameraSensor[mCameraId]->fd,
-                    &fps,
-                    framesize.discrete.width,
-                    framesize.discrete.height,
-                    fmt.pixelformat);
-
-            LOG_FEATURE("Frame info: format=%s, size=%ux%u, fps=%d",
-                    fmt.description,
-                    framesize.discrete.width,
-                    framesize.discrete.height,
-                    (int)fps);
-        }
-    }
-
-    // log all of the supported IOCTL controls and extended controls
-    struct v4l2_queryctrl ctrl;
-    struct v4l2_querymenu menu;
-    CLEAR(ctrl);
-    CLEAR(menu);
-    ctrl.id = V4L2_CTRL_FLAG_NEXT_CTRL;
-    while (ioctl(mCameraSensor[mCameraId]->fd, VIDIOC_QUERYCTRL, &ctrl) == 0) {
-        if (!(ctrl.flags & V4L2_CTRL_FLAG_DISABLED)) {
-            int readonly = (int) ((ctrl.flags & V4L2_CTRL_FLAG_READ_ONLY) != 0);
-            LOG_FEATURE("Control: %s (id=%d) readonly=%d",
-                    ctrl.name, ctrl.id, readonly);
-            switch (ctrl.type) {
-                case V4L2_CTRL_TYPE_INTEGER64:
-                    LOG_FEATURE("  - type=INTEGER64");
-                    break;
-                case V4L2_CTRL_TYPE_INTEGER:
-                    LOG_FEATURE("  - type=INTEGER");
-                    break;
-                case V4L2_CTRL_TYPE_BOOLEAN:
-                    LOG_FEATURE("  - type=BOOLEAN");
-                    break;
-                case V4L2_CTRL_TYPE_MENU:
-                    LOG_FEATURE("  - type=MENU");
-                    CLEAR(menu);
-                    menu.id = ctrl.id;
-                    for (menu.index = ctrl.minimum; menu.index <= (unsigned int) ctrl.maximum; menu.index++) {
-                        ioctl(mCameraSensor[mCameraId]->fd, VIDIOC_QUERYMENU, &menu);
-                        LOG_FEATURE("    - menu index=%d name=%s", menu.index, menu.name);
-                    };
-                    break;
-                case V4L2_CTRL_TYPE_BUTTON:
-                    LOG_FEATURE("  - type=BUTTON");
-                    break;
-                default:
-                    LOG_FEATURE("  - type=???");
-                    break;
-            }
-            LOG_FEATURE("  - minimum=%d", ctrl.minimum);
-            LOG_FEATURE("  - maximum=%d", ctrl.maximum);
-            LOG_FEATURE("  - step=%d", ctrl.step);
-            LOG_FEATURE("  - default_value=%d", ctrl.default_value);
-            LOG_FEATURE("  - flags=0x%x", ctrl.flags);
-        }
-        ctrl.id |= V4L2_CTRL_FLAG_NEXT_CTRL;
-    }
-}
-
 int CameraDriver::detectDeviceResolutions()
 {
     LOG1("@%s", __FUNCTION__);
     int ret = 0;
+    struct v4l2_frmsizeenum frame_size;
 
     //Switch the Mode before try the format.
     ret = set_capture_mode(MODE_CAPTURE);
     if (ret < 0)
         return ret;
+
+    int i = 0;
+    while (true) {
+        memset(&frame_size, 0, sizeof(frame_size));
+        frame_size.index = i++;
+        frame_size.pixel_format = mFormat;
+        /* TODO: Currently VIDIOC_ENUM_FRAMESIZES is returning with Invalid argument
+         * Need to know why the driver is not supporting this V4L2 API call
+         */
+        if (ioctl(mCameraSensor[mCameraId]->fd, VIDIOC_ENUM_FRAMESIZES, &frame_size) < 0) {
+            break;
+        }
+        ret++;
+        float fps = 0;
+        v4l2_capture_g_framerate(
+                mCameraSensor[mCameraId]->fd,
+                &fps,
+                frame_size.discrete.width,
+                frame_size.discrete.height);
+        LOG1("Supported frame size: %ux%u@%dfps",
+                frame_size.discrete.width,
+                frame_size.discrete.height,
+                static_cast<int>(fps));
+    }
 
     // Get the maximum format supported
     mConfig.snapshot.maxWidth = 0xffff;
@@ -1167,7 +1099,7 @@ int CameraDriver::xioctl(int fd, int request, void *arg)
     return ret;
 }
 
-int CameraDriver::v4l2_capture_g_framerate(int fd, float *framerate, int width, int height, int format)
+int CameraDriver::v4l2_capture_g_framerate(int fd, float *framerate, int width, int height)
 {
     LOG1("@%s", __FUNCTION__);
     int ret;
@@ -1178,7 +1110,7 @@ int CameraDriver::v4l2_capture_g_framerate(int fd, float *framerate, int width, 
 
     assert(fd > 0);
     CLEAR(frm_interval);
-    frm_interval.pixel_format = format;
+    frm_interval.pixel_format = mFormat;
     frm_interval.width = width;
     frm_interval.height = height;
     *framerate = -1.0;
