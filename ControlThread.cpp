@@ -562,14 +562,21 @@ status_t ControlThread::returnConversionBuffer(CameraBuffer *buff)
     return DEAD_OBJECT;
 }
 
-void ControlThread::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2)
+int ControlThread::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2)
 {
     Message msg;
+    int status = NO_ERROR;
     msg.id = MESSAGE_ID_COMMAND;
     msg.data.command.cmd_id = cmd;
     msg.data.command.arg1 = arg1;
     msg.data.command.arg2 = arg2;
+    if(cmd == CAMERA_CMD_START_FACE_DETECTION){
+        if(m_pFaceDetector == 0){
+           status = BAD_VALUE;
+        }
+    }
     mMessageQueue.send(&msg);
+    return status;
 }
 
 void ControlThread::autoFocusDone()
