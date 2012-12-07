@@ -964,6 +964,9 @@ status_t ControlThread::handleMessageAutoFocus()
         disableMsgType(CAMERA_MSG_PREVIEW_METADATA);
 
     status = mDriver->autoFocus();
+    if(status == INVALID_OPERATION){
+        autoFocusDone();
+    }
 
     return status;
 }
