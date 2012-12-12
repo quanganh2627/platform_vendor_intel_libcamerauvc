@@ -266,13 +266,14 @@ static void camera_put_parameters(struct camera_device *device, char *parms)
 static int camera_send_command(struct camera_device * device,
             int32_t cmd, int32_t arg1, int32_t arg2)
 {
+    int return_val = -EINVAL;
     ALOGD("%s", __FUNCTION__);
     if (!device)
         return -EINVAL;
     camera_hal *cam = (camera_hal *)(device->priv);
     if (cam)
-        cam->control_thread->sendCommand(cmd, arg1, arg2);
-    return 0;
+        return_val = cam->control_thread->sendCommand(cmd, arg1, arg2);
+    return return_val;
 }
 
 static void camera_release(struct camera_device * device)

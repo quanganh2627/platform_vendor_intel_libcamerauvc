@@ -73,7 +73,7 @@ public:
     status_t startRecording();
     status_t stopRecording();
 
-    void sendCommand( int32_t cmd, int32_t arg1, int32_t arg2);
+    int sendCommand( int32_t cmd, int32_t arg1, int32_t arg2);
 
     // return true if preview or recording is enabled
     bool previewEnabled();
