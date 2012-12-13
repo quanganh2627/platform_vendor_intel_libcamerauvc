@@ -175,7 +175,7 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
      */
     params->setVideoSize(mConfig.recording.width, mConfig.recording.height);
     params->set(CameraParameters::KEY_PREFERRED_PREVIEW_SIZE_FOR_VIDEO, "640x480");
-    params->set(CameraParameters::KEY_SUPPORTED_VIDEO_SIZES, ""); // empty string indicates we only support a single stream
+    params->set(CameraParameters::KEY_SUPPORTED_VIDEO_SIZES, "176x144,320x240,352x288,640x480,1280x720");
 
     params->set(CameraParameters::KEY_VIDEO_SNAPSHOT_SUPPORTED, CameraParameters::FALSE);
 
