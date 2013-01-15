@@ -158,110 +158,173 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
         return;
     }
 
-    /**
-     * PREVIEW
-     */
-    params->setPreviewSize(mConfig.preview.width, mConfig.preview.height);
-    params->setPreviewFrameRate(30);
+    if (mCameraSensor[mCameraId]->info.facing == CAMERA_FACING_FRONT) {
+        LOG1("Get Default Parameters for Front Camera ");
+        /**
+         * PREVIEW
+         */
+        params->setPreviewSize(mConfig.preview.width, mConfig.preview.height);
+        params->setPreviewFrameRate(30);
 
-    params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES, "640x480");
+        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES, "640x480");
 
-    params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,"30"); // TODO: consider which FPS to support
-    params->set(CameraParameters::KEY_PREVIEW_FPS_RANGE,"30000,30000");
-    params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE,"(30000,30000)");
+        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,"30"); // TODO: consider which FPS to support
+        params->set(CameraParameters::KEY_PREVIEW_FPS_RANGE,"30000,30000");
+        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE,"(30000,30000)");
 
-    /**
-     * RECORDING
-     */
-    params->setVideoSize(mConfig.recording.width, mConfig.recording.height);
-    params->set(CameraParameters::KEY_PREFERRED_PREVIEW_SIZE_FOR_VIDEO, "640x480");
-    params->set(CameraParameters::KEY_SUPPORTED_VIDEO_SIZES, "176x144,320x240,352x288,640x480,1280x720");
+        /**
+         * RECORDING
+         */
+        params->setVideoSize(mConfig.recording.width, mConfig.recording.height);
+        params->set(CameraParameters::KEY_PREFERRED_PREVIEW_SIZE_FOR_VIDEO, "640x480");
+        params->set(CameraParameters::KEY_SUPPORTED_VIDEO_SIZES, ""); // empty string indicates we only support a single stream
 
-    params->set(CameraParameters::KEY_VIDEO_SNAPSHOT_SUPPORTED, CameraParameters::FALSE);
+        params->set(CameraParameters::KEY_VIDEO_SNAPSHOT_SUPPORTED, CameraParameters::FALSE);
 
-    /**
-     * SNAPSHOT
-     */
-    params->set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, "640x480");
-    params->setPictureSize(mConfig.snapshot.width, mConfig.snapshot.height);
-    params->set(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES,"0x0"); // 0x0 indicates "not supported"
-    params->set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, 0);
-    params->set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, 0);
+        /**
+         * SNAPSHOT
+         */
+        params->set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, "640x480");
+        params->setPictureSize(mConfig.snapshot.width, mConfig.snapshot.height);
+        params->set(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES,"0x0"); // 0x0 indicates "not supported"
+        params->set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, 0);
+        params->set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, 0);
 
-    /**
-     * ZOOM
-     */
-    params->set(CameraParameters::KEY_ZOOM, 0);
-    params->set(CameraParameters::KEY_ZOOM_SUPPORTED, CameraParameters::TRUE);
-    getZoomRatios(MODE_PREVIEW, params);
+        /**
+         * ZOOM
+         */
+        params->set(CameraParameters::KEY_ZOOM, 0);
+        params->set(CameraParameters::KEY_ZOOM_SUPPORTED, CameraParameters::TRUE);
+        getZoomRatios(MODE_PREVIEW, params);
 
+       /**
+        * FOCUS
+        */
+       params->set(CameraParameters::KEY_FOCUS_MODE, CameraParameters::FOCUS_MODE_FIXED);
+       params->set(CameraParameters::KEY_SUPPORTED_FOCUS_MODES, CameraParameters::FOCUS_MODE_FIXED);
+
+       /**
+        * EXPOSURE
+        */
+       params->set(CameraParameters::KEY_EXPOSURE_COMPENSATION,0);
+       params->set(CameraParameters::KEY_MAX_EXPOSURE_COMPENSATION,0);
+       params->set(CameraParameters::KEY_MIN_EXPOSURE_COMPENSATION,0);
+       params->set(CameraParameters::KEY_EXPOSURE_COMPENSATION_STEP,0);
+
+       // white-balance mode
+       params->set(CameraParameters::KEY_WHITE_BALANCE, CameraParameters::WHITE_BALANCE_AUTO);
+       params->set(CameraParameters::KEY_SUPPORTED_WHITE_BALANCE, CameraParameters::WHITE_BALANCE_AUTO);
+
+       // Front Camera is Fixed focus so focus areas will be zero
+       params->set(CameraParameters::KEY_MAX_NUM_FOCUS_AREAS, 0);
+    }  else {
+        LOG1("Get Default Parameters for Rear Camera ");
+        /**
+         * PREVIEW
+         */
+        params->setPreviewSize(mConfig.preview.width, mConfig.preview.height);
+        params->setPreviewFrameRate(30);
+
+        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES, "640x480");
+
+        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,"30"); // TODO: consider which FPS to support
+        params->set(CameraParameters::KEY_PREVIEW_FPS_RANGE,"30000,30000");
+        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE,"(30000,30000)");
+
+        /**
+         * RECORDING
+         */
+        params->setVideoSize(mConfig.recording.width, mConfig.recording.height);
+        params->set(CameraParameters::KEY_PREFERRED_PREVIEW_SIZE_FOR_VIDEO, "640x480");
+        params->set(CameraParameters::KEY_SUPPORTED_VIDEO_SIZES, ""); // empty string indicates we only support a single stream
+
+        params->set(CameraParameters::KEY_VIDEO_SNAPSHOT_SUPPORTED, CameraParameters::FALSE);
+
+        /**
+         * SNAPSHOT
+         */
+        params->set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, "640x480");
+        params->setPictureSize(mConfig.snapshot.width, mConfig.snapshot.height);
+        params->set(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES,"0x0"); // 0x0 indicates "not supported"
+        params->set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, 0);
+        params->set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, 0);
+
+        /**
+         * ZOOM
+         */
+        params->set(CameraParameters::KEY_ZOOM, 0);
+        params->set(CameraParameters::KEY_ZOOM_SUPPORTED, CameraParameters::TRUE);
+        getZoomRatios(MODE_PREVIEW, params);
+
+        /**
+         * FOCUS
+         */
+        params->set(CameraParameters::KEY_FOCUS_MODE, CameraParameters::FOCUS_MODE_AUTO);
+        params->set(CameraParameters::KEY_SUPPORTED_FOCUS_MODES, CameraParameters::FOCUS_MODE_AUTO);
+
+        /**
+         * FOCAL LENGTH
+         */
+        // TODO: find out actual focal length
+        // TODO: also find out how to get sensor width and height which will likely be used with focal length
+        float focalLength = 0.0; // focalLength unit is mm
+        params->setFloat(CameraParameters::KEY_FOCAL_LENGTH, focalLength);
+
+       /**
+        * FOCUS DISTANCES
+        */
+       getFocusDistances(params);
+
+       /**
+        * EXPOSURE
+        */
+       params->set(CameraParameters::KEY_EXPOSURE_COMPENSATION,0);
+       params->set(CameraParameters::KEY_MAX_EXPOSURE_COMPENSATION,0);
+       params->set(CameraParameters::KEY_MIN_EXPOSURE_COMPENSATION,0);
+       params->set(CameraParameters::KEY_EXPOSURE_COMPENSATION_STEP,0);
+
+       // effect modes
+       params->set(CameraParameters::KEY_EFFECT, CameraParameters::EFFECT_NONE);
+       params->set(CameraParameters::KEY_SUPPORTED_EFFECTS, CameraParameters::EFFECT_NONE);
+
+       // white-balance mode
+       params->set(CameraParameters::KEY_WHITE_BALANCE, CameraParameters::WHITE_BALANCE_AUTO);
+       params->set(CameraParameters::KEY_SUPPORTED_WHITE_BALANCE, CameraParameters::WHITE_BALANCE_AUTO);
+
+       // scene mode
+       params->set(CameraParameters::KEY_SCENE_MODE, CameraParameters::SCENE_MODE_AUTO);
+       params->set(CameraParameters::KEY_SUPPORTED_SCENE_MODES, CameraParameters::SCENE_MODE_AUTO);
+
+       // 3a lock: auto-exposure lock
+       params->set(CameraParameters::KEY_AUTO_EXPOSURE_LOCK, "");
+       params->set(CameraParameters::KEY_AUTO_EXPOSURE_LOCK_SUPPORTED, CameraParameters::FALSE);
+
+       // 3a lock: auto-whitebalance lock
+       params->set(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK, "");
+       params->set(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK_SUPPORTED, CameraParameters::FALSE);
+
+       // multipoint focus
+       params->set(CameraParameters::KEY_MAX_NUM_FOCUS_AREAS, 1);
+
+       // set empty area
+       params->set(CameraParameters::KEY_FOCUS_AREAS, "(0,0,0,0,0)");
+
+    }
     /**
      * FLASH
      */
     params->set(CameraParameters::KEY_FLASH_MODE, CameraParameters::FLASH_MODE_OFF);
     params->set(CameraParameters::KEY_SUPPORTED_FLASH_MODES, CameraParameters::FLASH_MODE_OFF);
 
-    /**
-     * FOCUS
-     */
-    params->set(CameraParameters::KEY_FOCUS_MODE, CameraParameters::FOCUS_MODE_FIXED);
-    params->set(CameraParameters::KEY_SUPPORTED_FOCUS_MODES, CameraParameters::FOCUS_MODE_FIXED);
+    // metering areas
+    params->set(CameraParameters::KEY_MAX_NUM_METERING_AREAS, 0);
 
-    /**
-     * FOCAL LENGTH
-     */
-    // TODO: find out actual focal length
-    // TODO: also find out how to get sensor width and height which will likely be used with focal length
-    float focalLength = 0.0; // focalLength unit is mm
-    params->setFloat(CameraParameters::KEY_FOCAL_LENGTH, focalLength);
-
-    /**
-     * FOCUS DISTANCES
-     */
-    getFocusDistances(params);
-
-    /**
+     /**
      * MISCELLANEOUS
      */
     params->set(CameraParameters::KEY_VERTICAL_VIEW_ANGLE,"0.0");
     params->set(CameraParameters::KEY_HORIZONTAL_VIEW_ANGLE,"0.0");
 
-    /**
-     * EXPOSURE
-     */
-    params->set(CameraParameters::KEY_EXPOSURE_COMPENSATION,0);
-    params->set(CameraParameters::KEY_MAX_EXPOSURE_COMPENSATION,0);
-    params->set(CameraParameters::KEY_MIN_EXPOSURE_COMPENSATION,0);
-    params->set(CameraParameters::KEY_EXPOSURE_COMPENSATION_STEP,0);
-
-    // effect modes
-    params->set(CameraParameters::KEY_EFFECT, CameraParameters::EFFECT_NONE);
-    params->set(CameraParameters::KEY_SUPPORTED_EFFECTS, CameraParameters::EFFECT_NONE);
-
-    // white-balance mode
-    params->set(CameraParameters::KEY_WHITE_BALANCE, CameraParameters::WHITE_BALANCE_AUTO);
-    params->set(CameraParameters::KEY_SUPPORTED_WHITE_BALANCE, CameraParameters::WHITE_BALANCE_AUTO);
-
-    // scene mode
-    params->set(CameraParameters::KEY_SCENE_MODE, CameraParameters::SCENE_MODE_AUTO);
-    params->set(CameraParameters::KEY_SUPPORTED_SCENE_MODES, CameraParameters::SCENE_MODE_AUTO);
-
-    // 3a lock: auto-exposure lock
-    params->set(CameraParameters::KEY_AUTO_EXPOSURE_LOCK, "");
-    params->set(CameraParameters::KEY_AUTO_EXPOSURE_LOCK_SUPPORTED, CameraParameters::FALSE);
-
-    // 3a lock: auto-whitebalance lock
-    params->set(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK, "");
-    params->set(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK_SUPPORTED, CameraParameters::FALSE);
-
-    // multipoint focus
-    params->set(CameraParameters::KEY_MAX_NUM_FOCUS_AREAS, 0);
-
-    // set empty area
-    params->set(CameraParameters::KEY_FOCUS_AREAS, "");
-
-    // metering areas
-    params->set(CameraParameters::KEY_MAX_NUM_METERING_AREAS, 0);
 }
 
 status_t CameraDriver::start(Mode mode)
@@ -1538,12 +1601,40 @@ void CameraDriver::cleanupCameras(){
 
 status_t CameraDriver::autoFocus()
 {
-    return INVALID_OPERATION;
+    LOG1("@%s Feature Implemented", __FUNCTION__);
+
+    struct v4l2_control control;
+    int fd = mCameraSensor[mCameraId]->fd;
+
+    memset (&control, 0, sizeof (control));
+    control.id = V4L2_CID_FOCUS_AUTO;
+    control.value = 1;
+
+    if (-1 == ioctl (fd, VIDIOC_S_CTRL, &control)) {
+        perror ("Auto Focus Failure in Camera Driver");
+	return UNKNOWN_ERROR;
+    }
+    LOG1("Auto Focus ..............Done");
+    return NO_ERROR;
 }
 
 status_t CameraDriver::cancelAutoFocus()
 {
-    return INVALID_OPERATION;
+    LOG1("@%s Feature Implemented", __FUNCTION__);
+
+    struct v4l2_control control;
+    int fd = mCameraSensor[mCameraId]->fd;
+
+    memset (&control, 0, sizeof (control));
+    control.id = V4L2_CID_FOCUS_AUTO;
+    control.value = 0;
+
+    if (-1 == ioctl (fd, VIDIOC_S_CTRL, &control)) {
+        perror ("Cancel Auto Focus Failure in Camera Driver");
+	return UNKNOWN_ERROR;
+    }
+    LOG1("Cancel Auto Focus ..............Done");
+    return NO_ERROR;
 }
 
 status_t CameraDriver::setEffect(Effect effect)

@@ -971,9 +971,8 @@ status_t ControlThread::handleMessageAutoFocus()
         disableMsgType(CAMERA_MSG_PREVIEW_METADATA);
 
     status = mDriver->autoFocus();
-    if(status == INVALID_OPERATION){
-        autoFocusDone();
-    }
+
+    autoFocusDone();
 
     return status;
 }
@@ -1062,6 +1061,9 @@ status_t ControlThread::handleMessageAutoFocusDone()
     if (mFaceDetectionActive)
         enableMsgType(CAMERA_MSG_PREVIEW_METADATA);
     // Implement post auto-focus functions
+
+    enableMsgType(CAMERA_MSG_FOCUS);
+    mCallbacks->autofocusDone(true);
 
     return status;
 }
