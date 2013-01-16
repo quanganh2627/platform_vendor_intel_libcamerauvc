@@ -52,6 +52,7 @@ public:
     void previewFrameDone(CameraBuffer *buff);
     void videoFrameDone(CameraBuffer *buff, nsecs_t timstamp);
     void compressedFrameDone(CameraBuffer *buff);
+    void compressedRawFrameDone(CameraBuffer *buff);
     void cameraError(int err);
     void autofocusDone(bool status);
     void shutterSound();

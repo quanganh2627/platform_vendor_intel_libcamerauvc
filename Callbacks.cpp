@@ -98,7 +98,14 @@ void Callbacks::videoFrameDone(CameraBuffer *buff, nsecs_t timestamp)
         //decrement will be done when buffer is released by client in ControlThread
     }
 }
-
+void Callbacks::compressedRawFrameDone(CameraBuffer *buff)
+{
+    LOG1("@%s", __FUNCTION__);
+    if (mDataCB != NULL) {
+        LOG1("Sending message: CAMERA_MSG_RAW_IMAGE_NOTIFY");
+        mNotifyCB(CAMERA_MSG_RAW_IMAGE_NOTIFY, 1, 0, mUserToken);
+    }
+}
 void Callbacks::compressedFrameDone(CameraBuffer *buff)
 {
     LOG1("@%s", __FUNCTION__);

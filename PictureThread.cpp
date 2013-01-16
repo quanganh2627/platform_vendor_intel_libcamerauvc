@@ -243,6 +243,7 @@ status_t PictureThread::handleMessageEncode(MessageEncode *msg)
     // Encode the image
     CameraBuffer *postviewBuf = msg->postviewBuf == NULL ? NULL : msg->postviewBuf;
     if ((status = encodeToJpeg(msg->snaphotBuf, postviewBuf, &jpegBuf)) == NO_ERROR) {
+        mCallbacks->compressedRawFrameDone(msg->snaphotBuf);
         mCallbacks->compressedFrameDone(&jpegBuf);
     } else {
         ALOGE("Error generating JPEG image!");
