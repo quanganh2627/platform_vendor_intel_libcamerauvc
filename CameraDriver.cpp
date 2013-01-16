@@ -62,6 +62,10 @@
 #define MAX_FRONT_CAMERA_VIDEO_WIDTH            RESOLUTION_1080P_WIDTH
 #define MAX_FRONT_CAMERA_VIDEO_HEIGHT           RESOLUTION_1080P_HEIGHT
 
+// Zero doesn't work here.  Apps (e.g Gallery) use this as a
+// denominator and blow up with a FPE.
+#define DEFAULT_EXPOSURE_TIME 2
+
 namespace android {
 
 ////////////////////////////////////////////////////////////////////
@@ -1002,7 +1006,7 @@ status_t CameraDriver::getExposureInfo(CamExifExposureProgramType *exposureProgr
     // TODO: fill these with valid values
     *exposureProgram = EXIF_EXPOSURE_PROGRAM_NORMAL;
     *exposureMode = EXIF_EXPOSURE_AUTO;
-    *exposureTime = 0;
+    *exposureTime = DEFAULT_EXPOSURE_TIME;
     *exposureBias = 0.0;
     *aperture = 1;
     return NO_ERROR;
