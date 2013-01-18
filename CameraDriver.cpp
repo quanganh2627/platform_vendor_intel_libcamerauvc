@@ -603,6 +603,9 @@ int CameraDriver::openDevice()
 
     mCameraSensor[mCameraId]->fd = fd;
 
+    // Query the supported controls
+    querySupportedControls();
+
     return mCameraSensor[mCameraId]->fd;
 }
 
@@ -847,6 +850,31 @@ int CameraDriver::detectDeviceResolutions()
     if (ret < 0)
         return ret;
     return 0;
+}
+
+status_t CameraDriver::querySupportedControls()
+{
+    LOG1("@%s", __FUNCTION__);
+    status_t status = NO_ERROR;
+    int fd = mCameraSensor[mCameraId]->fd;
+    mSupportedControls.zoomAbsolute                = !(v4l2_capture_queryctrl(fd, V4L2_CID_ZOOM_ABSOLUTE));
+    mSupportedControls.focusAuto                   = !(v4l2_capture_queryctrl(fd, V4L2_CID_FOCUS_AUTO));
+    mSupportedControls.focusAbsolute               = !(v4l2_capture_queryctrl(fd, V4L2_CID_FOCUS_ABSOLUTE));
+    mSupportedControls.tiltAbsolute                = !(v4l2_capture_queryctrl(fd, V4L2_CID_TILT_ABSOLUTE ));
+    mSupportedControls.panAbsolute                 = !(v4l2_capture_queryctrl(fd, V4L2_CID_PAN_ABSOLUTE));
+    mSupportedControls.exposureAutoPriority        = !(v4l2_capture_queryctrl(fd, V4L2_CID_EXPOSURE_AUTO_PRIORITY));
+    mSupportedControls.exposureAbsolute            = !(v4l2_capture_queryctrl(fd, V4L2_CID_EXPOSURE_ABSOLUTE));
+    mSupportedControls.exposureAuto                = !(v4l2_capture_queryctrl(fd, V4L2_CID_EXPOSURE_AUTO));
+    mSupportedControls.backlightCompensation       = !(v4l2_capture_queryctrl(fd, V4L2_CID_BACKLIGHT_COMPENSATION));
+    mSupportedControls.sharpness                   = !(v4l2_capture_queryctrl(fd, V4L2_CID_SHARPNESS));
+    mSupportedControls.whiteBalanceTemperature     = !(v4l2_capture_queryctrl(fd, V4L2_CID_WHITE_BALANCE_TEMPERATURE));
+    mSupportedControls.powerLineFrequency          = !(v4l2_capture_queryctrl(fd, V4L2_CID_POWER_LINE_FREQUENCY));
+    mSupportedControls.gain                        = !(v4l2_capture_queryctrl(fd, V4L2_CID_GAIN));
+    mSupportedControls.whiteBalanceTemperatureAuto = !(v4l2_capture_queryctrl(fd, V4L2_CID_AUTO_WHITE_BALANCE));
+    mSupportedControls.saturation                  = !(v4l2_capture_queryctrl(fd, V4L2_CID_SATURATION));
+    mSupportedControls.contrast                    = !(v4l2_capture_queryctrl(fd, V4L2_CID_CONTRAST));
+    mSupportedControls.brightness                  = !(v4l2_capture_queryctrl(fd, V4L2_CID_BRIGHTNESS));
+    return status;
 }
 
 status_t CameraDriver::setPreviewFrameSize(int width, int height)
@@ -1236,6 +1264,17 @@ status_t CameraDriver::v4l2_capture_querycap(int fd, struct v4l2_capability *cap
     LOG1( "version:      %x", cap->version);
     LOG1( "capabilities:      %x", cap->capabilities);
 
+    return ret;
+}
+
+status_t CameraDriver::v4l2_capture_queryctrl(int fd, int attribute_num)
+{
+    LOG1("@%s", __FUNCTION__);
+    int ret = 0;
+    struct v4l2_queryctrl queryctrl;
+    memset (&queryctrl, 0, sizeof (queryctrl));
+    queryctrl.id = attribute_num;
+    ret = ioctl(fd, VIDIOC_QUERYCTRL, &queryctrl);
     return ret;
 }
 
