@@ -176,6 +176,8 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
         params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,"30"); // TODO: consider which FPS to support
         params->set(CameraParameters::KEY_PREVIEW_FPS_RANGE,"30000,30000");
         params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE,"(30000,30000)");
+        params->set(CameraParameters::KEY_PREVIEW_FORMAT, "yuv420sp");
+        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS, "yuv420p,yuv420sp");
 
         /**
          * RECORDING
@@ -189,12 +191,16 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
         /**
          * SNAPSHOT
          */
+        params->set(CameraParameters::KEY_PICTURE_SIZE, "640x480");
         params->set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, "640x480");
+        params->set(CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS,CameraParameters::PIXEL_FORMAT_JPEG);
         params->setPictureSize(mConfig.snapshot.width, mConfig.snapshot.height);
         params->set(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES,"0x0"); // 0x0 indicates "not supported"
         params->set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, 0);
         params->set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, 0);
 
+        params->set(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY, "75");
+        params->set(CameraParameters::KEY_JPEG_QUALITY, "75");
         /**
          * ZOOM
          */
@@ -257,6 +263,8 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
         params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,"30"); // TODO: consider which FPS to support
         params->set(CameraParameters::KEY_PREVIEW_FPS_RANGE,"30000,30000");
         params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE,"(30000,30000)");
+        params->set(CameraParameters::KEY_PREVIEW_FORMAT, "yuv420sp");
+        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS, "yuv420p,yuv420sp");
 
         /**
          * RECORDING
@@ -270,12 +278,16 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
         /**
          * SNAPSHOT
          */
+        params->set(CameraParameters::KEY_PICTURE_SIZE, "640x480");
         params->set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, "640x480");
+        params->set(CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS,CameraParameters::PIXEL_FORMAT_JPEG);
         params->setPictureSize(mConfig.snapshot.width, mConfig.snapshot.height);
         params->set(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES,"0x0"); // 0x0 indicates "not supported"
         params->set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, 0);
         params->set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, 0);
 
+        params->set(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY, "75");
+        params->set(CameraParameters::KEY_JPEG_QUALITY, "75");
         /**
          * ZOOM
          */
@@ -294,7 +306,7 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
          */
         // TODO: find out actual focal length
         // TODO: also find out how to get sensor width and height which will likely be used with focal length
-        float focalLength = 0.0; // focalLength unit is mm
+        float focalLength = 10; // focalLength unit is mm
         params->setFloat(CameraParameters::KEY_FOCAL_LENGTH, focalLength);
 
        /**
@@ -372,8 +384,8 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
      /**
      * MISCELLANEOUS
      */
-    params->set(CameraParameters::KEY_VERTICAL_VIEW_ANGLE,"0.0");
-    params->set(CameraParameters::KEY_HORIZONTAL_VIEW_ANGLE,"0.0");
+    params->set(CameraParameters::KEY_HORIZONTAL_VIEW_ANGLE, 45);
+    params->set(CameraParameters::KEY_VERTICAL_VIEW_ANGLE, 45);
 
 }
 
@@ -1106,6 +1118,7 @@ void CameraDriver::getFocusDistances(CameraParameters *params)
 {
     LOG1("@%s", __FUNCTION__);
     // TODO: set focus distances (CameraParameters::KEY_FOCUS_DISTANCES,)
+    params->set(CameraParameters::KEY_FOCUS_DISTANCES,"0.95,1.9,Infinity");
 }
 
 status_t CameraDriver::setZoom(int zoom)

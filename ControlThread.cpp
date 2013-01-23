@@ -127,7 +127,6 @@ void ControlThread::initDefaultParams()
     char previewFormats[100] = {0};
     snprintf(previewFormats, sizeof(previewFormats), "%s",
             CameraParameters::PIXEL_FORMAT_YUV420SP);
-    mParameters.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS, previewFormats);
 
     // video format
     mParameters.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT,
