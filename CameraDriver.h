@@ -321,6 +321,7 @@ private:
     int mZoomMax;
 
     int mZoomMin;
+    char *mDetectedRes;
 
 }; // class CameraDriver
 

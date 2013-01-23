@@ -87,6 +87,7 @@ CameraDriver::CameraDriver(int cameraId) :
     ,mSessionId(0)
     ,mCameraId(cameraId)
     ,mFormat(V4L2_PIX_FMT_YUYV)
+    ,mDetectedRes(0)
 {
     LOG1("@%s", __FUNCTION__);
 
@@ -156,6 +157,7 @@ CameraDriver::~CameraDriver()
     if (mMode != MODE_NONE) {
         stop();
     }
+    free(mDetectedRes);
 }
 
 void CameraDriver::getDefaultParameters(CameraParameters *params)
@@ -196,7 +198,7 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
          * SNAPSHOT
          */
         params->set(CameraParameters::KEY_PICTURE_SIZE, "640x480");
-        params->set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, "640x480");
+        params->set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, mDetectedRes);
         params->set(CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS,CameraParameters::PIXEL_FORMAT_JPEG);
         params->setPictureSize(mConfig.snapshot.width, mConfig.snapshot.height);
         params->set(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES,"0x0,160x120"); // 0x0 indicates "not supported"
@@ -307,7 +309,7 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
          * SNAPSHOT
          */
         params->set(CameraParameters::KEY_PICTURE_SIZE, "640x480");
-        params->set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, "640x480");
+        params->set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, mDetectedRes);
         params->set(CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS,CameraParameters::PIXEL_FORMAT_JPEG);
         params->setPictureSize(mConfig.snapshot.width, mConfig.snapshot.height);
         params->set(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES,"0x0,160x120"); // 0x0 indicates "not supported"
@@ -615,8 +617,8 @@ status_t CameraDriver::startCapture()
 
     ret = configureDevice(
             MODE_CAPTURE,
-            mConfig.preview.padding,
-            mConfig.preview.height,
+            mConfig.snapshot.width,
+            mConfig.snapshot.height,
             NUM_DEFAULT_BUFFERS);
     if (ret < 0) {
         ALOGE("Configure device failed!");
@@ -995,10 +997,13 @@ int CameraDriver::detectDeviceResolutions()
     if (ret < 0)
         return ret;
 
-    int i = 0;
+    // Some temporary variables declared to determine supported resolutions
+    int offset = 0, length = 0;
+    int noOfDetectRes = 0;
+    char supportedRes[1000] = {0};
     while (true) {
         memset(&frame_size, 0, sizeof(frame_size));
-        frame_size.index = i++;
+        frame_size.index = noOfDetectRes++;
         frame_size.pixel_format = mFormat;
         /* TODO: Currently VIDIOC_ENUM_FRAMESIZES is returning with Invalid argument
          * Need to know why the driver is not supporting this V4L2 API call
@@ -1017,7 +1022,35 @@ int CameraDriver::detectDeviceResolutions()
                 frame_size.discrete.width,
                 frame_size.discrete.height,
                 static_cast<int>(fps));
+
+        /* Storing resolutions in the format understandable by Camera Parameters
+         * to set Supported Picture Sizes. Eg "640x480,320x240"
+         * But below first printf will convert integers to strings and just stores
+         * in 640x480 320x240 values. Second printf after this loop will do
+         * full string converion.
+         */
+        snprintf(supportedRes + offset, (sizeof(supportedRes) - offset),"%dx%d",
+                                        frame_size.discrete.width,frame_size.discrete.height);
+        offset=offset+10;
     }
+
+    /* Detected resolutions on the fly from Camera sensor and same is
+     * used to set the "Supported Picture Size" parameter.
+     * Second printf in the loop will now add comma to 640x480 320x240
+     * and convert to full string "640x480,320x240" in a format understandable by
+     * camera parameters
+     */
+    ALOGD("No of Detected Resolutions ....%d", noOfDetectRes-1);
+    mDetectedRes = (char *)malloc(noOfDetectRes*4*sizeof(frame_size.discrete.width));
+    offset=0;
+    memset(mDetectedRes,0,sizeof(mDetectedRes));
+    while((noOfDetectRes-1) > 0){
+        length = strlen(mDetectedRes);
+        snprintf(mDetectedRes + length, noOfDetectRes*4*sizeof(frame_size.discrete.width), "%s,",supportedRes + offset);
+        noOfDetectRes--;
+        offset=offset+10;
+    }
+    ALOGD("Detected Resolutions are ....%s", mDetectedRes);
 
     // Get the maximum format supported
     mConfig.snapshot.maxWidth = 0xffff;
@@ -1835,7 +1868,7 @@ status_t CameraDriver::autoFocus()
 
     if (-1 == ioctl (fd, VIDIOC_S_CTRL, &control)) {
         perror ("Auto Focus Failure in Camera Driver");
-	return UNKNOWN_ERROR;
+        return UNKNOWN_ERROR;
     }
     LOG1("Auto Focus ..............Done");
     return NO_ERROR;
@@ -1854,7 +1887,7 @@ status_t CameraDriver::cancelAutoFocus()
 
     if (-1 == ioctl (fd, VIDIOC_S_CTRL, &control)) {
         perror ("Cancel Auto Focus Failure in Camera Driver");
-	return UNKNOWN_ERROR;
+        return UNKNOWN_ERROR;
     }
     LOG1("Cancel Auto Focus ..............Done");
     return NO_ERROR;
