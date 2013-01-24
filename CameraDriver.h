@@ -226,6 +226,26 @@ private:
         DriverBuffer *bufs;
     };
 
+    struct DriverSupportedControls {
+        bool zoomAbsolute;
+        bool focusAuto;
+        bool focusAbsolute;
+        bool tiltAbsolute;
+        bool panAbsolute;
+        bool exposureAutoPriority;
+        bool exposureAbsolute;
+        bool exposureAuto;
+        bool backlightCompensation;
+        bool sharpness;
+        bool whiteBalanceTemperature;
+        bool powerLineFrequency;
+        bool gain;
+        bool whiteBalanceTemperatureAuto;
+        bool saturation;
+        bool contrast;
+        bool brightness;
+    };
+
 // private methods
 private:
 
@@ -259,6 +279,8 @@ private:
     status_t v4l2_capture_open(const char *devName);
     status_t v4l2_capture_close(int fd);
     status_t v4l2_capture_querycap(int fd, struct v4l2_capability *cap);
+    status_t v4l2_capture_queryctrl(int fd, int attribute_num);
+    status_t querySupportedControls();
     int detectDeviceResolutions();
     int set_capture_mode(Mode deviceMode);
     int v4l2_capture_try_format(int fd, int *w, int *h);
@@ -288,6 +310,8 @@ private:
     int mCameraId;
 
     int mFormat;
+
+    struct DriverSupportedControls mSupportedControls;
 
 }; // class CameraDriver
 
