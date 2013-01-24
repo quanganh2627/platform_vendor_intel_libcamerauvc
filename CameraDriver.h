@@ -128,7 +128,8 @@ public:
     status_t getSnapshot(CameraBuffer **buff);
     status_t putSnapshot(CameraBuffer *buff);
 
-    status_t getThumbnail(CameraBuffer **buff);
+    status_t getThumbnail(CameraBuffer *buff,CameraBuffer **inputBuffer,
+        int width, int height, int thumb_w, int thumb_h);
     status_t putThumbnail(CameraBuffer *buff);
     CameraBuffer* findBuffer(void* findMe) const;
 
@@ -223,6 +224,7 @@ private:
     struct DriverBufferPool {
         int numBuffers;
         int numBuffersQueued;
+        CameraBuffer *thumbnail;
         DriverBuffer *bufs;
     };
 
