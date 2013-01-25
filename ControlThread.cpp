@@ -1687,6 +1687,8 @@ status_t ControlThread::processParamWhiteBalance(const CameraParameters *oldPara
             wbMode = CameraDriver::WHITE_BALANCE_TWILIGHT;
         } else if (!strncmp(newWb, CameraParameters::WHITE_BALANCE_SHADE, strlen(CameraParameters::WHITE_BALANCE_SHADE))) {
             wbMode = CameraDriver::WHITE_BALANCE_SHADE;
+        } else if (!strncmp(newWb, CameraParameters::WHITE_BALANCE_FLUORESCENT, strlen(CameraParameters::WHITE_BALANCE_FLUORESCENT))) {
+            wbMode = CameraDriver::WHITE_BALANCE_FLUORESCENT;
         } else {
             ALOGE("invalid wb mode");
             return BAD_VALUE;

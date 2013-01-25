@@ -157,6 +157,7 @@ CameraDriver::~CameraDriver()
 void CameraDriver::getDefaultParameters(CameraParameters *params)
 {
     LOG2("@%s", __FUNCTION__);
+    int status = 0;
     if (!params) {
         ALOGE("params is null!");
         return;
@@ -217,7 +218,29 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
 
        // white-balance mode
        params->set(CameraParameters::KEY_WHITE_BALANCE, CameraParameters::WHITE_BALANCE_AUTO);
-       params->set(CameraParameters::KEY_SUPPORTED_WHITE_BALANCE, CameraParameters::WHITE_BALANCE_AUTO);
+       if (mSupportedControls.whiteBalanceTemperature) {
+           char wbModes[100] = {0};
+           status = snprintf(wbModes, sizeof(wbModes)
+               ,"%s,%s,%s,%s,%s"
+               ,CameraParameters::WHITE_BALANCE_AUTO
+               ,CameraParameters::WHITE_BALANCE_INCANDESCENT
+               ,CameraParameters::WHITE_BALANCE_DAYLIGHT
+               ,CameraParameters::WHITE_BALANCE_FLUORESCENT
+               ,CameraParameters::WHITE_BALANCE_CLOUDY_DAYLIGHT);
+       if (status < 0) {
+           ALOGE("Could not generate %s string: %s",
+               CameraParameters::KEY_SUPPORTED_WHITE_BALANCE, strerror(errno));
+           return;
+       } else if (static_cast<unsigned>(status) >= sizeof(wbModes)) {
+           ALOGE("Truncated %s string. Reserved length: %d",
+               CameraParameters::KEY_SUPPORTED_WHITE_BALANCE, sizeof(wbModes));
+           return;
+       }
+       params->set(CameraParameters::KEY_SUPPORTED_WHITE_BALANCE, wbModes);
+       } else {
+           params->set(CameraParameters::KEY_SUPPORTED_WHITE_BALANCE, CameraParameters::WHITE_BALANCE_AUTO);
+       }
+
 
        // Front Camera is Fixed focus so focus areas will be zero
        params->set(CameraParameters::KEY_MAX_NUM_FOCUS_AREAS, 0);
@@ -294,6 +317,29 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
        // white-balance mode
        params->set(CameraParameters::KEY_WHITE_BALANCE, CameraParameters::WHITE_BALANCE_AUTO);
        params->set(CameraParameters::KEY_SUPPORTED_WHITE_BALANCE, CameraParameters::WHITE_BALANCE_AUTO);
+       if (mSupportedControls.whiteBalanceTemperature) {
+           char wbModes[100] = {0};
+           status = snprintf(wbModes, sizeof(wbModes)
+               ,"%s,%s,%s,%s,%s"
+               ,CameraParameters::WHITE_BALANCE_AUTO
+               ,CameraParameters::WHITE_BALANCE_INCANDESCENT
+               ,CameraParameters::WHITE_BALANCE_DAYLIGHT
+               ,CameraParameters::WHITE_BALANCE_FLUORESCENT
+               ,CameraParameters::WHITE_BALANCE_CLOUDY_DAYLIGHT);
+       if (status < 0) {
+           ALOGE("Could not generate %s string: %s",
+               CameraParameters::KEY_SUPPORTED_WHITE_BALANCE, strerror(errno));
+           return;
+       } else if (static_cast<unsigned>(status) >= sizeof(wbModes)) {
+           ALOGE("Truncated %s string. Reserved length: %d",
+               CameraParameters::KEY_SUPPORTED_WHITE_BALANCE, sizeof(wbModes));
+           return;
+       }
+       params->set(CameraParameters::KEY_SUPPORTED_WHITE_BALANCE, wbModes);
+       } else {
+           params->set(CameraParameters::KEY_SUPPORTED_WHITE_BALANCE, CameraParameters::WHITE_BALANCE_AUTO);
+       }
+
 
        // scene mode
        params->set(CameraParameters::KEY_SCENE_MODE, CameraParameters::SCENE_MODE_AUTO);
@@ -1735,12 +1781,57 @@ status_t CameraDriver::setFocusMode(FocusMode focusMode, CameraWindow *windows, 
 
 status_t CameraDriver::setWhiteBalanceMode(WhiteBalanceMode wbMode)
 {
-    if (wbMode != WHITE_BALANCE_AUTO) {
+    LOG1("@%s", __FUNCTION__);
+    int color_tempreture = 0;
+    int ret = NO_ERROR;
+    int fd = mCameraSensor[mCameraId]->fd;
+
+    if ((wbMode != WHITE_BALANCE_AUTO) && (!mSupportedControls.whiteBalanceTemperature)) {
         ALOGE("invalid white balance");
         return BAD_VALUE;
+    } else if ( wbMode == WHITE_BALANCE_AUTO) {
+        if(set_attribute(fd, V4L2_CID_AUTO_WHITE_BALANCE, 1 ,"White Balance Temperature, Auto" ) !=0) {
+            ALOGE("Error in setting white balance mode");
+            return INVALID_OPERATION;
+        }
+    } else {
+        switch (wbMode) {
+        case WHITE_BALANCE_INCANDESCENT:
+        {
+            color_tempreture = 2800;
+            break;
+        }
+        case WHITE_BALANCE_FLUORESCENT:
+        {
+            color_tempreture = 5000;
+            break;
+        }
+        case WHITE_BALANCE_DAYLIGHT:
+        {
+            color_tempreture = 6000;
+            break;
+        }
+        case WHITE_BALANCE_CLOUDY_DAYLIGHT:
+        {
+            color_tempreture = 6500;
+            break;
+        }
+        default:
+        {
+            ALOGE("Unsupported white balance mode");
+            ret = -1;
+            break;
+        }
+        }
+        if (color_tempreture > 0) {
+           if(set_attribute(fd, V4L2_CID_AUTO_WHITE_BALANCE, 0 ,"White Balance Temperature, Auto" ) !=0) {
+               ALOGE("Error in setting white balance mode");
+           }
+        if(set_attribute(fd, V4L2_CID_WHITE_BALANCE_TEMPERATURE, color_tempreture ,"White Balance Temperature" ) !=0) {
+               ALOGE("Error in setting white balance mode");
+           }
+        }
     }
-
-    // Do nothing. WHITE_BALANCE_AUTO is all we support.
 
     return NO_ERROR;;
 }
