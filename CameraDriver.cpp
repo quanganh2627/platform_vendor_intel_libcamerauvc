@@ -66,6 +66,7 @@
 // denominator and blow up with a FPE.
 #define DEFAULT_EXPOSURE_TIME 2
 
+
 namespace android {
 
 ////////////////////////////////////////////////////////////////////
@@ -92,6 +93,9 @@ CameraDriver::CameraDriver(int cameraId) :
     mConfig.fps = 30;
     mConfig.num_snapshot = 1;
     mConfig.zoom = 0;
+
+    mZoomMax = 100;
+    mZoomMin = 100;
 
     memset(&mBufferPool, 0, sizeof(mBufferPool));
 
@@ -718,7 +722,7 @@ int CameraDriver::openDevice()
 
     // Query the supported controls
     querySupportedControls();
-
+    getZoomMaxMinValues();
     return mCameraSensor[mCameraId]->fd;
 }
 
@@ -990,6 +994,22 @@ status_t CameraDriver::querySupportedControls()
     return status;
 }
 
+status_t CameraDriver::getZoomMaxMinValues()
+{
+    int ret = 0;
+    int fd = mCameraSensor[mCameraId]->fd;
+    struct v4l2_queryctrl queryctrl;
+    memset (&queryctrl, 0, sizeof (queryctrl));
+    queryctrl.id = V4L2_CID_ZOOM_ABSOLUTE;
+    ret = ioctl(fd, VIDIOC_QUERYCTRL, &queryctrl);
+    if (ret ==0)
+    {
+        mZoomMax = queryctrl.maximum;
+        mZoomMin = queryctrl.minimum;
+    }
+    return ret;
+}
+
 status_t CameraDriver::setPreviewFrameSize(int width, int height)
 {
     LOG1("@%s", __FUNCTION__);
@@ -1091,15 +1111,42 @@ status_t CameraDriver::setVideoFrameSize(int width, int height)
     return status;
 }
 
+void CameraDriver::computeZoomRatios(char *zoom_ratio, int max_count){
+
+    int zoom_step = 1;
+    int ratio = mZoomMin ;
+    int pos = 0;
+    //Get zoom from mZoomMin to mZoomMax
+    while((ratio <= mZoomMax + mZoomMin) && (pos < max_count)){
+        sprintf(zoom_ratio + pos,"%d,",ratio);
+        if (ratio < 1000)
+            pos += 4;
+        else
+            pos += 5;
+        ratio += zoom_step;
+    }
+
+    //Overwrite the last ',' with '\0'
+    if (pos > 0)
+        *(zoom_ratio + pos -1 ) = '\0';
+}
+
 void CameraDriver::getZoomRatios(Mode mode, CameraParameters *params)
 {
     LOG1("@%s", __FUNCTION__);
-
-    // TODO: decide if we can support zoom
-
-    // zoom is not supported. this is indicated by placing a single zoom ratio in params
-    params->set(CameraParameters::KEY_MAX_ZOOM, "0"); // zoom index 0 indicates first (and only) zoom ratio
-    params->set(CameraParameters::KEY_ZOOM_RATIOS, "100");
+    char *mZoomRatios;
+    if(mSupportedControls.zoomAbsolute) {
+        params->set(CameraParameters::KEY_MAX_ZOOM,mZoomMax);
+        static const int zoomBytes = mZoomMax * 5 + 1;
+        mZoomRatios = new char[zoomBytes];
+        computeZoomRatios(mZoomRatios, zoomBytes);
+        params->set(CameraParameters::KEY_ZOOM_RATIOS, mZoomRatios);
+        delete[] mZoomRatios;
+    } else {
+        // zoom is not supported. this is indicated by placing a single zoom ratio in params
+        params->set(CameraParameters::KEY_MAX_ZOOM, "0"); // zoom index 0 indicates first (and only) zoom ratio
+        params->set(CameraParameters::KEY_ZOOM_RATIOS, "100");
+    }
 }
 
 void CameraDriver::getFocusDistances(CameraParameters *params)
@@ -1184,8 +1231,12 @@ status_t CameraDriver::getSceneMode(CamExifSceneCaptureType *sceneMode)
 int CameraDriver::set_zoom(int fd, int zoom)
 {
     LOG1("@%s", __FUNCTION__);
-
-    // TODO: set zoom
+    if(mSupportedControls.zoomAbsolute) {
+        if(set_attribute(fd, V4L2_CID_ZOOM_ABSOLUTE, zoom, "Zoom, Absolute" ) !=0) {
+            ALOGE("Error in setting Zoom");
+            return INVALID_OPERATION;
+        }
+    }
 
     return NO_ERROR;
 }
