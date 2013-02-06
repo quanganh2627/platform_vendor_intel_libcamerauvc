@@ -146,6 +146,7 @@ public:
     void getVideoSize(int *width, int *height);
 
     void getZoomRatios(Mode mode, CameraParameters *params);
+    void computeZoomRatios(char *zoom_ratio, int max_count);
     void getFocusDistances(CameraParameters *params);
     status_t setZoom(int zoom);
 
@@ -281,6 +282,7 @@ private:
     status_t v4l2_capture_querycap(int fd, struct v4l2_capability *cap);
     status_t v4l2_capture_queryctrl(int fd, int attribute_num);
     status_t querySupportedControls();
+    status_t getZoomMaxMinValues();
     int detectDeviceResolutions();
     int set_capture_mode(Mode deviceMode);
     int v4l2_capture_try_format(int fd, int *w, int *h);
@@ -312,6 +314,10 @@ private:
     int mFormat;
 
     struct DriverSupportedControls mSupportedControls;
+
+    int mZoomMax;
+
+    int mZoomMin;
 
 }; // class CameraDriver
 
