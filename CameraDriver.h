@@ -247,6 +247,7 @@ private:
         bool saturation;
         bool contrast;
         bool brightness;
+        bool hue;
     };
 
 // private methods

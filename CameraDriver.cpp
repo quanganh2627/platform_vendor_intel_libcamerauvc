@@ -226,6 +226,30 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
        params->set(CameraParameters::KEY_MIN_EXPOSURE_COMPENSATION,0);
        params->set(CameraParameters::KEY_EXPOSURE_COMPENSATION_STEP,0);
 
+       // effect modes
+       if (mSupportedControls.hue) {
+           params->set(CameraParameters::KEY_EFFECT, CameraParameters::EFFECT_NONE);
+           char effectModes[200] = {0};
+           int status = snprintf(effectModes, sizeof(effectModes)
+                ,"%s,%s,%s,%s"
+                ,CameraParameters::EFFECT_NONE
+                ,CameraParameters::EFFECT_MONO
+                ,CameraParameters::EFFECT_SEPIA);
+
+           if (status < 0) {
+               ALOGE("Could not generate %s string: %s",
+                   CameraParameters::KEY_SUPPORTED_EFFECTS, strerror(errno));
+               return;
+           } else if (static_cast<unsigned>(status) >= sizeof(effectModes)) {
+               ALOGE("Truncated %s string. Reserved length: %d",
+                   CameraParameters::KEY_SUPPORTED_EFFECTS, sizeof(effectModes));
+               return;
+           }
+           params->set(CameraParameters::KEY_SUPPORTED_EFFECTS, effectModes);
+       } else {
+           params->set(CameraParameters::KEY_SUPPORTED_EFFECTS, CameraParameters::EFFECT_NONE);
+       }
+
        // white-balance mode
        params->set(CameraParameters::KEY_WHITE_BALANCE, CameraParameters::WHITE_BALANCE_AUTO);
        if (mSupportedControls.whiteBalanceTemperature) {
@@ -327,8 +351,28 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
        params->set(CameraParameters::KEY_EXPOSURE_COMPENSATION_STEP,0);
 
        // effect modes
-       params->set(CameraParameters::KEY_EFFECT, CameraParameters::EFFECT_NONE);
-       params->set(CameraParameters::KEY_SUPPORTED_EFFECTS, CameraParameters::EFFECT_NONE);
+       if (mSupportedControls.hue) {
+           params->set(CameraParameters::KEY_EFFECT, CameraParameters::EFFECT_NONE);
+           char effectModes[200] = {0};
+           int status = snprintf(effectModes, sizeof(effectModes)
+                ,"%s,%s,%s,%s"
+                ,CameraParameters::EFFECT_NONE
+                ,CameraParameters::EFFECT_MONO
+                ,CameraParameters::EFFECT_SEPIA);
+
+           if (status < 0) {
+               ALOGE("Could not generate %s string: %s",
+                   CameraParameters::KEY_SUPPORTED_EFFECTS, strerror(errno));
+               return;
+           } else if (static_cast<unsigned>(status) >= sizeof(effectModes)) {
+               ALOGE("Truncated %s string. Reserved length: %d",
+                   CameraParameters::KEY_SUPPORTED_EFFECTS, sizeof(effectModes));
+               return;
+           }
+           params->set(CameraParameters::KEY_SUPPORTED_EFFECTS, effectModes);
+       } else {
+           params->set(CameraParameters::KEY_SUPPORTED_EFFECTS, CameraParameters::EFFECT_NONE);
+       }
 
        // white-balance mode
        params->set(CameraParameters::KEY_WHITE_BALANCE, CameraParameters::WHITE_BALANCE_AUTO);
@@ -485,7 +529,6 @@ status_t CameraDriver::startPreview()
         status = UNKNOWN_ERROR;
         goto exitDeconfig;
     }
-
     return status;
 
 exitDeconfig:
@@ -1009,6 +1052,7 @@ status_t CameraDriver::querySupportedControls()
     mSupportedControls.saturation                  = !(v4l2_capture_queryctrl(fd, V4L2_CID_SATURATION));
     mSupportedControls.contrast                    = !(v4l2_capture_queryctrl(fd, V4L2_CID_CONTRAST));
     mSupportedControls.brightness                  = !(v4l2_capture_queryctrl(fd, V4L2_CID_BRIGHTNESS));
+    mSupportedControls.hue                         = !(v4l2_capture_queryctrl(fd, V4L2_CID_HUE));
     return status;
 }
 
@@ -1818,14 +1862,57 @@ status_t CameraDriver::cancelAutoFocus()
 
 status_t CameraDriver::setEffect(Effect effect)
 {
-    if (effect != EFFECT_NONE) {
-        ALOGE("invalid color effect");
-        return BAD_VALUE;
+    LOG1("@%s", __FUNCTION__);
+    int ret = NO_ERROR;
+    int hueVal = 0;
+    int saturationVal = 0;
+    int fd = mCameraSensor[mCameraId]->fd;
+
+    if ((!mSupportedControls.hue)||(!mSupportedControls.saturation)){
+        if(effect != EFFECT_NONE) {
+            ALOGE("invalid color effect");
+            return BAD_VALUE;
+        } else {
+            return NO_ERROR;
+        }
+    } else {
+        switch (effect) {
+        case EFFECT_NONE:
+        {
+            hueVal = 0;
+            saturationVal = 128;
+            break;
+        }
+        case EFFECT_MONO:
+        {
+            hueVal = 0;
+            saturationVal = 0;
+            break;
+        }
+        case EFFECT_SEPIA:
+        {
+            hueVal = 1200;
+            saturationVal = 16;
+            break;
+        }
+        default:
+        {
+            ALOGE("invalid color effect");
+            ret = BAD_VALUE;
+            break;
+        }
+        }
+        if(set_attribute(fd, V4L2_CID_HUE, hueVal ,"Hue" )!=0) {
+            ALOGE("Error in writing Hue value");
+            ret = -1;
+        }
+        if(set_attribute(fd, V4L2_CID_SATURATION, saturationVal ,"Saturation" )!=0) {
+            ALOGE("Error in writing Saturation value");
+            ret = -1;
+        }
+
     }
-
-    // Do nothing. EFFECT_NONE is all we support.
-
-    return NO_ERROR;;
+    return ret;
 }
 
 status_t CameraDriver::setFlashMode(FlashMode flashMode)
