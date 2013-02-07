@@ -199,9 +199,9 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
         params->set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, "640x480");
         params->set(CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS,CameraParameters::PIXEL_FORMAT_JPEG);
         params->setPictureSize(mConfig.snapshot.width, mConfig.snapshot.height);
-        params->set(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES,"0x0"); // 0x0 indicates "not supported"
-        params->set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, 0);
-        params->set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, 0);
+        params->set(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES,"0x0,160x120"); // 0x0 indicates "not supported"
+        params->set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, 160);
+        params->set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, 120);
 
         params->set(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY, "75");
         params->set(CameraParameters::KEY_JPEG_QUALITY, "75");
@@ -286,9 +286,9 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
         params->set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES, "640x480");
         params->set(CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS,CameraParameters::PIXEL_FORMAT_JPEG);
         params->setPictureSize(mConfig.snapshot.width, mConfig.snapshot.height);
-        params->set(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES,"0x0"); // 0x0 indicates "not supported"
-        params->set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, 0);
-        params->set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, 0);
+        params->set(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES,"0x0,160x120"); // 0x0 indicates "not supported"
+        params->set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, 160);
+        params->set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, 120);
 
         params->set(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY, "75");
         params->set(CameraParameters::KEY_JPEG_QUALITY, "75");
@@ -820,6 +820,7 @@ status_t CameraDriver::allocateBuffers(int numBuffers)
 
     mBufferPool.bufs = new DriverBuffer[numBuffers];
 
+    mBufferPool.thumbnail = new CameraBuffer();
     status_t status = NO_ERROR;
     for (int i = 0; i < numBuffers; i++) {
         status = allocateBuffer(fd, i);
@@ -838,6 +839,7 @@ fail:
     }
 
     delete [] mBufferPool.bufs;
+    delete mBufferPool.thumbnail;
     memset(&mBufferPool, 0, sizeof(mBufferPool));
 
     return status;
@@ -868,6 +870,9 @@ status_t CameraDriver::freeBuffers()
         freeBuffer(i);
     }
 
+    if(mBufferPool.thumbnail != NULL){
+        mBufferPool.thumbnail->releaseMemory();
+    }
     LOG1("VIDIOC_REQBUFS, count=%d", reqBuf.count);
     ret = ioctl(fd, VIDIOC_REQBUFS, &reqBuf);
 
@@ -878,6 +883,7 @@ status_t CameraDriver::freeBuffers()
     }
 
     delete [] mBufferPool.bufs;
+    delete mBufferPool.thumbnail;
     memset(&mBufferPool, 0, sizeof(mBufferPool));
 
     return NO_ERROR;
@@ -1554,10 +1560,30 @@ status_t CameraDriver::putSnapshot(CameraBuffer *buff)
     return queueBuffer(buff);;
 }
 
-status_t CameraDriver::getThumbnail(CameraBuffer **buff)
+status_t CameraDriver::getThumbnail(CameraBuffer *buff,CameraBuffer **inputBuffer,
+        int width, int height, int thumb_w, int thumb_h)
 {
-    LOG1("@%s", __FUNCTION__);
-    return INVALID_OPERATION;
+    LOG1("@%s: width = %d,height = %d,thumb_w = %d,thumb_h = %d", __FUNCTION__,width,height,thumb_w,thumb_h);
+    bool ret = NO_MEMORY;
+    *inputBuffer = mBufferPool.thumbnail;
+    mCallbacks->allocateMemory(*inputBuffer, thumb_w * thumb_h * 2);
+    if( (unsigned char *)( *inputBuffer)->getData()  == NULL){
+        ALOGE("Fail to allocate thumbnail buf");
+        return ret;
+    }
+    int w_multil = width / thumb_w;
+    int h_multil = height / thumb_h;
+
+    // resize YUYV
+    LOG2("resize the the thumbnail");
+    int *src = (int *)buff->getData();
+    int *dst = (int *)(*inputBuffer)->getData();
+    for (int i = 0; i < thumb_h; i++) {
+        for (int j = 0; j+3 < (thumb_w << 1); j+=4) {
+            dst[(((thumb_w*i)<<1)+j)/4] = src[(((width*h_multil*i)<<1)+j*w_multil)/4];
+        }
+    }
+    return NO_ERROR;
 }
 
 status_t CameraDriver::putThumbnail(CameraBuffer *buff)

@@ -170,11 +170,13 @@ status_t PictureThread::encode(CameraBuffer *snaphotBuf, CameraBuffer *postviewB
     msg.data.encode.snaphotBuf = snaphotBuf;
     msg.data.encode.postviewBuf = postviewBuf;
     status_t ret = INVALID_OPERATION;
-    if ((ret = mMessageQueue.send(&msg)) == NO_ERROR) {
+
+    if (snaphotBuf != 0)
+        snaphotBuf->incrementReader();
+
+    if ((ret = mMessageQueue.send(&msg)) != NO_ERROR) {
         if (snaphotBuf != 0)
-            snaphotBuf->incrementReader();
-        if (postviewBuf != 0)
-            postviewBuf->incrementReader();
+            snaphotBuf->decrementReader();
     }
     return ret;
 }
@@ -237,26 +239,23 @@ status_t PictureThread::handleMessageEncode(MessageEncode *msg)
         mConfig.picture.height == 0 ||
         mConfig.picture.format == 0) {
         ALOGE("Picture information not set yet!");
+        if (msg->snaphotBuf != NULL)
+            msg->snaphotBuf->decrementReader();
         return UNKNOWN_ERROR;
     }
 
     // Encode the image
-    CameraBuffer *postviewBuf = msg->postviewBuf == NULL ? NULL : msg->postviewBuf;
-    if ((status = encodeToJpeg(msg->snaphotBuf, postviewBuf, &jpegBuf)) == NO_ERROR) {
+    if ((status = encodeToJpeg(msg->snaphotBuf, msg->postviewBuf, &jpegBuf)) == NO_ERROR) {
         mCallbacks->compressedRawFrameDone(msg->snaphotBuf);
         mCallbacks->compressedFrameDone(&jpegBuf);
     } else {
         ALOGE("Error generating JPEG image!");
     }
-
-
+    // When the encoding is done, send back the buffers to camera
+    if (msg->snaphotBuf != NULL)
+        msg->snaphotBuf->decrementReader();
     LOG1("Releasing jpegBuf @%p", jpegBuf.getData());
     jpegBuf.releaseMemory();
-
-    // When the encoding is done, send back the buffers to camera
-    msg->snaphotBuf->decrementReader();
-    if (msg->postviewBuf != 0)
-        msg->postviewBuf->decrementReader();
 
     return status;
 }

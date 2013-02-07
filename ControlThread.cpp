@@ -919,19 +919,17 @@ status_t ControlThread::handleMessageTakePicture()
         snapshotBuffer->mType = BUFFER_TYPE_SNAPSHOT;
 
         if (mThumbSupported) {
-            if ((status = mDriver->getThumbnail(&postviewBuffer)) != NO_ERROR) {
+            if ((status = mDriver->getThumbnail(snapshotBuffer, &postviewBuffer, width, height,
+                config.thumbnail.width, config.thumbnail.height)) != NO_ERROR) {
                 ALOGE("Error in grabbing thumbnail!");
-            }else if (postviewBuffer != 0)
-            {
-                postviewBuffer->setOwner(this);
-                postviewBuffer->mType = BUFFER_TYPE_THUMBNAIL;
             }
             postviewBuffer->setOwner(this);
+            postviewBuffer->mType = BUFFER_TYPE_THUMBNAIL;
         }
 
         mCallbacks->shutterSound();
 
-        if (postviewBuffer != 0) {
+        if (mThumbSupported && postviewBuffer != NULL) {
             status = mPictureThread->encode(snapshotBuffer, postviewBuffer);
         } else {
             status = mPictureThread->encode(snapshotBuffer);
