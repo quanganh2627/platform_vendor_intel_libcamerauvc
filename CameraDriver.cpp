@@ -357,7 +357,7 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
            params->set(CameraParameters::KEY_EFFECT, CameraParameters::EFFECT_NONE);
            char effectModes[200] = {0};
            int status = snprintf(effectModes, sizeof(effectModes)
-                ,"%s,%s,%s,%s"
+                ,"%s,%s,%s"
                 ,CameraParameters::EFFECT_NONE
                 ,CameraParameters::EFFECT_MONO
                 ,CameraParameters::EFFECT_SEPIA);
