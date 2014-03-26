@@ -1,3 +1,5 @@
+ifeq ($(INTEL_USE_CAMERA_UVC),true)
+
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
@@ -36,7 +38,11 @@ LOCAL_SHARED_LIBRARIES := \
 	libs3cjpeg \
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
-LOCAL_MODULE := camera.$(TARGET_BOARD_PLATFORM)
+LOCAL_MODULE := camera.$(TARGET_PRODUCT)
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
+
+include $(call all-makefiles-under,$(LOCAL_PATH))
+
+endif # ifeq ($(INTEL_USE_CAMERA_UVC),true)
