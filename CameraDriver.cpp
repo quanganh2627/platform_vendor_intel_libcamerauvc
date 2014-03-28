@@ -48,17 +48,17 @@
 #define RESOLUTION_POSTVIEW_HEIGHT   240
 
 // TODO: revisit this legacy implementation
-#define MAX_BACK_CAMERA_PREVIEW_WIDTH           RESOLUTION_1080P_WIDTH
-#define MAX_BACK_CAMERA_PREVIEW_HEIGHT          RESOLUTION_1080P_HEIGHT
-#define MAX_BACK_CAMERA_SNAPSHOT_WIDTH          RESOLUTION_1080P_WIDTH
-#define MAX_BACK_CAMERA_SNAPSHOT_HEIGHT         RESOLUTION_1080P_HEIGHT
+#define MAX_BACK_CAMERA_PREVIEW_WIDTH           RESOLUTION_VGA_WIDTH
+#define MAX_BACK_CAMERA_PREVIEW_HEIGHT          RESOLUTION_VGA_HEIGHT
+#define MAX_BACK_CAMERA_SNAPSHOT_WIDTH          RESOLUTION_VGA_WIDTH
+#define MAX_BACK_CAMERA_SNAPSHOT_HEIGHT         RESOLUTION_VGA_HEIGHT
 #define MAX_BACK_CAMERA_VIDEO_WIDTH             RESOLUTION_1080P_WIDTH
 #define MAX_BACK_CAMERA_VIDEO_HEIGHT            RESOLUTION_1080P_HEIGHT
 
-#define MAX_FRONT_CAMERA_PREVIEW_WIDTH          RESOLUTION_1080P_WIDTH
-#define MAX_FRONT_CAMERA_PREVIEW_HEIGHT         RESOLUTION_1080P_HEIGHT
-#define MAX_FRONT_CAMERA_SNAPSHOT_WIDTH         RESOLUTION_1080P_WIDTH
-#define MAX_FRONT_CAMERA_SNAPSHOT_HEIGHT        RESOLUTION_1080P_HEIGHT
+#define MAX_FRONT_CAMERA_PREVIEW_WIDTH          RESOLUTION_VGA_WIDTH
+#define MAX_FRONT_CAMERA_PREVIEW_HEIGHT         RESOLUTION_VGA_HEIGHT
+#define MAX_FRONT_CAMERA_SNAPSHOT_WIDTH         RESOLUTION_VGA_WIDTH
+#define MAX_FRONT_CAMERA_SNAPSHOT_HEIGHT        RESOLUTION_VGA_HEIGHT
 #define MAX_FRONT_CAMERA_VIDEO_WIDTH            RESOLUTION_1080P_WIDTH
 #define MAX_FRONT_CAMERA_VIDEO_HEIGHT           RESOLUTION_1080P_HEIGHT
 
@@ -1018,6 +1018,11 @@ int CameraDriver::detectDeviceResolutions()
                 &fps,
                 frame_size.discrete.width,
                 frame_size.discrete.height);
+        if (frame_size.discrete.width > RESOLUTION_VGA_WIDTH)
+          frame_size.discrete.width = RESOLUTION_VGA_WIDTH;
+        if (frame_size.discrete.height > RESOLUTION_VGA_HEIGHT)
+          frame_size.discrete.height = RESOLUTION_VGA_HEIGHT;
+
         LOG1("Supported frame size: %ux%u@%dfps",
                 frame_size.discrete.width,
                 frame_size.discrete.height,
@@ -1058,6 +1063,10 @@ int CameraDriver::detectDeviceResolutions()
     ret = v4l2_capture_try_format(mCameraSensor[mCameraId]->fd,
             &mConfig.snapshot.maxWidth,
             &mConfig.snapshot.maxHeight);
+    if (mConfig.snapshot.maxWidth > RESOLUTION_VGA_WIDTH)
+      mConfig.snapshot.maxWidth = RESOLUTION_VGA_WIDTH;
+    if (mConfig.snapshot.maxHeight > RESOLUTION_VGA_HEIGHT)
+      mConfig.snapshot.maxHeight = RESOLUTION_VGA_HEIGHT;
     if (ret < 0)
         return ret;
     return 0;
