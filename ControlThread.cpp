@@ -741,19 +741,28 @@ status_t ControlThread::restartPreview(bool videoMode)
 status_t ControlThread::handleMessageStartPreview()
 {
     LOG1("@%s", __FUNCTION__);
-    status_t status;
+    status_t status = NO_ERROR;
+    bool videoMode = isParameterSet(CameraParameters::KEY_RECORDING_HINT) ? true : false;
     if (mState == STATE_CAPTURE) {
+        /*
         status = stopCapture();
         if (status != NO_ERROR) {
             ALOGE("Could not stop capture before start preview!");
             return status;
         }
+        */
+        if (videoMode) {
+            mState = STATE_PREVIEW_VIDEO;
+        } else {
+            mState = STATE_PREVIEW_STILL;
+        }
+        mMessageQueue.reply(MESSAGE_ID_START_PREVIEW, status);
+        return status;
     }
     if (mState == STATE_STOPPED) {
         // API says apps should call startFaceDetection when resuming preview
         // stop FD here to avoid accidental FD.
         stopFaceDetection();
-        bool videoMode = isParameterSet(CameraParameters::KEY_RECORDING_HINT) ? true : false;
         status = startPreviewCore(videoMode);
     } else {
         ALOGE("Error starting preview. Invalid state!");
@@ -846,10 +855,10 @@ status_t ControlThread::handleMessageTakePicture()
         return INVALID_OPERATION;
     }
 
-    stopFaceDetection();
+    //stopFaceDetection();
 
     if (origState == STATE_PREVIEW_STILL) {
-        status = stopPreviewCore();
+        //status = stopPreviewCore();
         if (status != NO_ERROR) {
             ALOGE("Error stopping preview!");
             return status;
@@ -902,6 +911,7 @@ status_t ControlThread::handleMessageTakePicture()
     mPictureThread->setConfig(&config);
 
     if (origState == STATE_PREVIEW_STILL) {
+        /*
         // Configure and start the driver
         mDriver->setSnapshotFrameSize(width, height);
 
@@ -909,6 +919,7 @@ status_t ControlThread::handleMessageTakePicture()
             ALOGE("Error starting the driver in CAPTURE mode!");
             return status;
         }
+        */
 
         // Get the snapshot
         if ((status = mDriver->getSnapshot(&snapshotBuffer)) != NO_ERROR) {
