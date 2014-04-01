@@ -179,9 +179,9 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
 
         params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES, "640x480");
 
-        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,"30"); // TODO: consider which FPS to support
-        params->set(CameraParameters::KEY_PREVIEW_FPS_RANGE,"30000,30000");
-        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE,"(30000,30000)");
+        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,"24,30"); // TODO: consider which FPS to support
+        params->set(CameraParameters::KEY_PREVIEW_FPS_RANGE,"24000,30000");
+        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE,"(24000,30000)");
         params->set(CameraParameters::KEY_PREVIEW_FORMAT, "yuv420sp");
         params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS, "yuv420p,yuv420sp");
 
@@ -290,9 +290,9 @@ void CameraDriver::getDefaultParameters(CameraParameters *params)
 
         params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES, "640x480");
 
-        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,"30"); // TODO: consider which FPS to support
-        params->set(CameraParameters::KEY_PREVIEW_FPS_RANGE,"30000,30000");
-        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE,"(30000,30000)");
+        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,"24,30"); // TODO: consider which FPS to support
+        params->set(CameraParameters::KEY_PREVIEW_FPS_RANGE,"24000,30000");
+        params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE,"(24000,30000)");
         params->set(CameraParameters::KEY_PREVIEW_FORMAT, "yuv420sp");
         params->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS, "yuv420p,yuv420sp");
 
