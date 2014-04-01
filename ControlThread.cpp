@@ -847,8 +847,8 @@ status_t ControlThread::handleMessageTakePicture()
     status_t status = NO_ERROR;
     CameraBuffer *snapshotBuffer = 0, *postviewBuffer = 0;
     State origState = mState;
-    int width;
-    int height;
+    int width, previewWidth;
+    int height, previewHeight;
 
     if (origState != STATE_PREVIEW_STILL && origState != STATE_RECORDING) {
         ALOGE("we only support snapshot in still preview and recording");
@@ -867,6 +867,7 @@ status_t ControlThread::handleMessageTakePicture()
     }
 
     // Get the current params
+    mParameters.getPreviewSize(&previewWidth, &previewHeight);
     mParameters.getPictureSize(&width, &height);
     if (origState == STATE_RECORDING) {
         // override picture size to video size if recording
@@ -928,6 +929,23 @@ status_t ControlThread::handleMessageTakePicture()
         }
         snapshotBuffer->setOwner(this);
         snapshotBuffer->mType = BUFFER_TYPE_SNAPSHOT;
+
+        /** Hack - since we no longer close/start the driver it will still provide frames
+            at preview resolution. If the actual pic size is smaller resize the buffer
+            **/
+        if (width < previewWidth && height < previewHeight) {
+
+            int w_multil = previewWidth / width;
+            int h_multil = previewHeight / height;
+
+            // resize YUYV
+            int* data = (int*)snapshotBuffer->getData();
+            for (int i = 0; i < height; i++) {
+                for (int j = 0; j+3 < (width << 1); j+=4) {
+                  data[(((width*i)<<1)+j)/4] = data[(((previewWidth*h_multil*i)<<1)+j*w_multil)/4];
+                }
+            }
+        }
 
         if (mThumbSupported) {
             if ((status = mDriver->getThumbnail(snapshotBuffer, &postviewBuffer, width, height,
